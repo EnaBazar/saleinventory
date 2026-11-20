@@ -275,12 +275,17 @@ lotSchema.pre("validate", function () {
     return;
   }
 
-  this.remainingBags = this.bagsReceived || 0;
+   this.remainingBags = this.bagsReceived || 0;
   this.remainingWeightKg = this.totalWeightKg || 0;
 
-  this.totalPurchaseAmount =
-    (this.totalWeightKg || 0) *
-    (this.purchasePricePerKg || 0);
+  if (this.stockType === "COMMISSION") {
+    this.purchasePricePerKg = 0;
+    this.totalPurchaseAmount = 0;
+  } else {
+    this.totalPurchaseAmount =
+      (this.totalWeightKg || 0) *
+      (this.purchasePricePerKg || 0);
+  }
 });
 
 // Indexes

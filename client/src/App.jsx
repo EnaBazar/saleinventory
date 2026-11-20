@@ -606,16 +606,44 @@ async function apiRequest(url, options = {}) {
 // ======================================
 
 // Load Sales Invoice List
-async function loadSalesInvoices() {
+
+// Load Sales Invoice List
+async function loadSalesInvoices(overrides = {}) {
   try {
     setSalesLoading(true);
 
+    const search = overrides.search ?? salesSearch;
+    const status = overrides.status ?? salesStatusFilter;
+    const startDate = overrides.startDate ?? salesStartDate;
+    const endDate = overrides.endDate ?? salesEndDate;
+
     const params = new URLSearchParams();
 
-    if (salesSearch.trim()) params.append("search", salesSearch.trim());
-    if (salesStatusFilter) params.append("status", salesStatusFilter);
-    if (salesStartDate) params.append("from", salesStartDate);
-    if (salesEndDate) params.append("to", salesEndDate);
+    if (search.trim()) {
+      params.append("search", search.trim());
+    }
+
+    if (status) {
+      params.append("status", status);
+    }
+
+    // Search বা Date Range না থাকলে শুধু আজকের Invoice দেখাবে
+    if (!startDate && !endDate && !search.trim()) {
+      const dateParts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Dhaka",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(new Date());
+
+      const today = `${dateParts.find(p => p.type === "year").value}-${dateParts.find(p => p.type === "month").value}-${dateParts.find(p => p.type === "day").value}`;
+
+      params.append("from", today);
+      params.append("to", today);
+    } else {
+      if (startDate) params.append("from", startDate);
+      if (endDate) params.append("to", endDate);
+    }
 
     const result = await apiRequest(`/sales?${params.toString()}`);
 
@@ -626,6 +654,7 @@ async function loadSalesInvoices() {
     setSalesLoading(false);
   }
 }
+
 
 // Search Customer for Sales
 async function searchSalesCustomers(value) {
@@ -2245,9 +2274,13 @@ useEffect(() => {
 }, [activePage]);
 
 const purchaseTotalAmount =
-  (Number(purchaseForm.totalWeightKg) || 0) *
-  (Number(purchaseForm.purchasePricePerKg) || 0);
-
+  purchaseForm.productId &&
+  products.find(
+    (p) => String(p._id) === String(purchaseForm.productId)
+  )?.stockType === "COMMISSION"
+    ? 0
+    : (Number(purchaseForm.totalWeightKg) || 0) *
+      (Number(purchaseForm.purchasePricePerKg) || 0);
 async function submitPurchase(e) {
   e.preventDefault();
 
@@ -7956,6 +7989,13 @@ function renderPurchases() {
       p.purchaseStatus === "PENDING"
   );
 
+    const selectedPurchaseProduct = pendingProducts.find(
+    (p) => String(p._id) === String(purchaseForm.productId)
+  );
+
+  const isCommissionPurchase =
+    selectedPurchaseProduct?.stockType === "COMMISSION";
+
   const filteredLots = getFilteredLots();
 
 const supplierPaymentSummary = (
@@ -8378,14 +8418,16 @@ Purchase Management
                   );
 
                   setPurchaseForm({
-                    ...purchaseForm,
-                    productId: e.target.value,
-                    supplierId: selectedProduct
-                      ? selectedProduct.supplier?._id ||
-                        selectedProduct.supplier ||
-                        ""
-                      : "",
-                  });
+  ...purchaseForm,
+  productId: e.target.value,
+  supplierId: selectedProduct
+    ? selectedProduct.supplier?._id ||
+      selectedProduct.supplier ||
+      ""
+    : "",
+  purchasePricePerKg:
+    selectedProduct?.stockType === "COMMISSION" ? "0" : "",
+});
                 }}
               >
                 <option value="">Select Pending Product</option>
@@ -8495,26 +8537,54 @@ Purchase Management
               />
             </div>
 
-            {/* Purchase Price */}
-            <div>
-              <label>Purchase Price Per KG *</label>
+     {/* Purchase Price */}
+<div>
+  <label>
+    Purchase Price Per KG
+    {!isCommissionPurchase && " *"}
+  </label>
 
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                required
-                style={inputStyle}
-                placeholder="Enter price per KG"
-                value={purchaseForm.purchasePricePerKg}
-                onChange={(e) =>
-                  setPurchaseForm({
-                    ...purchaseForm,
-                    purchasePricePerKg: e.target.value,
-                  })
-                }
-              />
-            </div>
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    required={!isCommissionPurchase}
+    disabled={isCommissionPurchase}
+    style={{
+      ...inputStyle,
+      background: isCommissionPurchase ? "#e5e7eb" : "#ffffff",
+      cursor: isCommissionPurchase ? "not-allowed" : "text",
+    }}
+    placeholder={
+      isCommissionPurchase
+        ? "Commission Product - No Purchase Rate"
+        : "Enter price per KG"
+    }
+    value={
+      isCommissionPurchase
+        ? "0"
+        : purchaseForm.purchasePricePerKg
+    }
+    onChange={(e) =>
+      setPurchaseForm({
+        ...purchaseForm,
+        purchasePricePerKg: e.target.value,
+      })
+    }
+  />
+
+  {isCommissionPurchase && (
+    <small
+      style={{
+        color: "#b45309",
+        display: "block",
+        marginTop: 5,
+      }}
+    >
+      Commission product: Purchase rate is not applicable.
+    </small>
+  )}
+</div>
           </div>
 
           {/* Total Purchase Amount */}
@@ -12392,12 +12462,20 @@ return (
           <button
             type="button"
             className="secondary-button"
-            onClick={() => {
-              setSalesSearch("");
-              setSalesStartDate("");
-              setSalesEndDate("");
-              setSalesStatusFilter("");
-            }}
+            
+          onClick={() => {
+  setSalesSearch("");
+  setSalesStartDate("");
+  setSalesEndDate("");
+  setSalesStatusFilter("");
+
+  loadSalesInvoices({
+    search: "",
+    status: "",
+    startDate: "",
+    endDate: "",
+  });
+}}
           >
             Clear Filters
           </button>

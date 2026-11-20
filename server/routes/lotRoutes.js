@@ -78,7 +78,7 @@ let createdPurchaseLedger = null;
     }
 
     const weight = Number(totalWeightKg);
-    const price = Number(purchasePricePerKg);
+  
     const bags = Number(bagsReceived || 0);
 
     if (!Number.isFinite(weight) || weight <= 0) {
@@ -88,12 +88,7 @@ let createdPurchaseLedger = null;
       });
     }
 
-    if (!Number.isFinite(price) || price < 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid purchase price is required",
-      });
-    }
+  
 
     if (!Number.isFinite(bags) || bags < 0) {
       return res.status(400).json({
@@ -110,6 +105,24 @@ let createdPurchaseLedger = null;
         message: "Product not found or inactive",
       });
     }
+
+// ========================================
+// PURCHASE PRICE BASED ON STOCK TYPE
+// ========================================
+
+const stockType = product.stockType || "OWN";
+
+const price =
+  stockType === "COMMISSION"
+    ? 0
+    : Number(purchasePricePerKg);
+
+if (!Number.isFinite(price) || price < 0) {
+  return res.status(400).json({
+    success: false,
+    message: "Valid purchase price is required",
+  });
+}
 
     const pendingLot = await Lot.findOne({
       productId: product._id,
@@ -177,8 +190,9 @@ let createdPurchaseLedger = null;
           purchaseDate: date,
           bagsReceived: bags,
           totalWeightKg: weight,
-          purchasePricePerKg: price,
-          totalPurchaseAmount: weight * price,
+       purchasePricePerKg: price,
+totalPurchaseAmount:
+  stockType === "COMMISSION" ? 0 : weight * price,
           remainingBags: bags,
           remainingWeightKg: weight,
           returnedBags: 0,
@@ -228,7 +242,10 @@ let createdPurchaseLedger = null;
 // ========================================
 // CREATE SUPPLIER PURCHASE LEDGER ENTRY
 // ========================================
-if (updatedLot.supplierId) {
+if (
+  updatedLot.supplierId &&
+  updatedLot.stockType === "OWN"
+) {
   const purchaseAmount = Number(
     updatedLot.totalPurchaseAmount || 0
   );
@@ -473,11 +490,14 @@ if (!editReason || !editReason.trim()) {
       totalWeightKg !== undefined ? totalWeightKg : lot.totalWeightKg
     );
 
-    const newPrice = Number(
-      purchasePricePerKg !== undefined
-        ? purchasePricePerKg
-        : lot.purchasePricePerKg
-    );
+  const newPrice =
+  lot.stockType === "COMMISSION"
+    ? 0
+    : Number(
+        purchasePricePerKg !== undefined
+          ? purchasePricePerKg
+          : lot.purchasePricePerKg
+      );
 
     if (
       !Number.isFinite(newBags) ||
@@ -572,7 +592,8 @@ if (!editReason || !editReason.trim()) {
       bagsReceived: newBags,
       totalWeightKg: newWeight,
       purchasePricePerKg: newPrice,
-      totalPurchaseAmount: newWeight * newPrice,
+totalPurchaseAmount:
+  lot.stockType === "COMMISSION" ? 0 : newWeight * newPrice,
       notes: notes !== undefined ? notes : lot.notes,
     };
 
@@ -646,8 +667,9 @@ lot.editHistory.push({
     lot.purchaseDate = newDate;
     lot.bagsReceived = newBags;
     lot.totalWeightKg = newWeight;
-    lot.purchasePricePerKg = newPrice;
-    lot.totalPurchaseAmount = newWeight * newPrice;
+lot.purchasePricePerKg = newPrice;
+lot.totalPurchaseAmount =
+  lot.stockType === "COMMISSION" ? 0 : newWeight * newPrice;
     lot.remainingBags = newRemainingBags;
     lot.remainingWeightKg = newRemainingWeight;
 
@@ -698,7 +720,11 @@ lot.editHistory.push({
     });
 
     // Create updated purchase entry
-    if (newSupplierId && newPurchaseAmount > 0) {
+   if (
+  lot.stockType === "OWN" &&
+  newSupplierId &&
+  newPurchaseAmount > 0
+) {
       await SupplierLedger.create({
         supplierId: newSupplierId,
         type: "PURCHASE",
