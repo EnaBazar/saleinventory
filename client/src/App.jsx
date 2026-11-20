@@ -40,7 +40,15 @@ const navigation = [
     title: "MANAGEMENT",
     items: [
       { label: "Inventory", icon: Warehouse },
-     { label: "Commission Management", icon: FileText },
+      {
+        label: "Commission",
+        icon: FileText,
+        children: [
+          { label: "Commission Management", icon: FileText },
+          { label: "Commission History", icon: ClipboardList },
+          { label: "Commission Reports", icon: BarChart3 },
+        ],
+      },
       { label: "Accounts", icon: Wallet },
       { label: "Reports", icon: BarChart3 },
       { label: "Activity Log", icon: ClipboardList },
@@ -153,6 +161,29 @@ const [commissionTransportCost, setCommissionTransportCost] = useState(0);
 const [commissionLabourRate, setCommissionLabourRate] = useState(0);
 const [commissionRatePerKg, setCommissionRatePerKg] = useState(0);
 const [commissionOtherCost, setCommissionOtherCost] = useState(0);
+
+// COMMISSION INVOICE HISTORY
+const [commissionInvoices, setCommissionInvoices] = useState([]);
+const [commissionHistoryLoading, setCommissionHistoryLoading] = useState(false);
+const [commissionHistoryError, setCommissionHistoryError] = useState("");
+
+const [commissionReports, setCommissionReports] = useState(null);
+const [commissionReportsLoading, setCommissionReportsLoading] = useState(false);
+
+const [editingCommissionInvoice, setEditingCommissionInvoice] = useState(null);
+const [commissionEditSaving, setCommissionEditSaving] = useState(false);
+const [commissionEditReason, setCommissionEditReason] = useState("");
+const [expandedMenus, setExpandedMenus] = useState({});
+const [commissionReportFilters, setCommissionReportFilters] = useState({
+  startDate: "",
+  endDate: "",
+  supplierId: "",
+  lotId: "",
+});
+const [commissionSupplierSearch, setCommissionSupplierSearch] = useState("");
+const [showCommissionSupplierSuggestions, setShowCommissionSupplierSuggestions] = useState(false);
+const [commissionLotSearch, setCommissionLotSearch] = useState("");
+const [showCommissionLotSuggestions, setShowCommissionLotSuggestions] = useState(false);
 
 
 // ======================================
@@ -1944,6 +1975,196 @@ async function loadCommissionLots() {
     setCommissionLoading(false);
   }
 }
+// LOAD COMMISSION INVOICE HISTORY
+async function loadCommissionInvoices() {
+  try {
+    setCommissionHistoryLoading(true);
+    setCommissionHistoryError("");
+
+    const result = await apiRequest("/commission");
+
+    const invoices =
+      result.invoices ||
+      result.data?.invoices ||
+      result.data ||
+      [];
+
+    setCommissionInvoices(
+      Array.isArray(invoices) ? invoices : []
+    );
+  } catch (error) {
+    setCommissionHistoryError(error.message);
+    toast.error(error.message);
+  } finally {
+    setCommissionHistoryLoading(false);
+  }
+}
+// CANCEL COMMISSION INVOICE
+async function cancelCommissionInvoice(invoiceId) {
+  const reason = window.prompt(
+    "Enter reason for cancelling this Commission Invoice:"
+  );
+
+  if (reason === null) return;
+
+  if (!reason.trim()) {
+    toast.error("Cancellation reason is required");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "Are you sure you want to cancel this Commission Invoice?"
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const result = await apiRequest(
+      `/commission/${invoiceId}/cancel`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reason: reason.trim(),
+        }),
+      }
+    );
+
+    toast.success(
+      result.message || "Commission Invoice cancelled successfully"
+    );
+
+    await loadCommissionInvoices();
+  } catch (error) {
+    toast.error(error.message);
+  }
+}
+// OPEN COMMISSION INVOICE FOR EDIT
+function openCommissionInvoiceEdit(invoice) {
+  setEditingCommissionInvoice(invoice);
+
+  setCommissionItems(
+    invoice.items.map((item) => ({
+      bags: String(item.bags ?? ""),
+      weightKg: String(item.weightKg ?? ""),
+      ratePerKg: String(item.ratePerKg ?? ""),
+    }))
+  );
+
+  setCommissionTransportCost(invoice.transportCost ?? 0);
+  setCommissionLabourRate(invoice.labourRatePerBag ?? 0);
+  setCommissionRatePerKg(invoice.commissionRatePerKg ?? 0);
+  setCommissionOtherCost(invoice.otherCost ?? 0);
+  setCommissionNotes(invoice.notes || "");
+  setCommissionEditReason("");
+}
+// UPDATE COMMISSION INVOICE
+async function updateCommissionInvoice() {
+  if (!editingCommissionInvoice) {
+    toast.error("No Commission Invoice selected");
+    return;
+  }
+
+  if (!commissionEditReason.trim()) {
+    toast.error("Edit reason is required");
+    return;
+  }
+
+  try {
+    setCommissionEditSaving(true);
+
+    const result = await apiRequest(
+      `/commission/${editingCommissionInvoice._id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          invoiceDate: editingCommissionInvoice.invoiceDate,
+
+          items: commissionItems.map((item) => ({
+            bags: Number(item.bags),
+            weightKg: Number(item.weightKg),
+            ratePerKg: Number(item.ratePerKg),
+          })),
+
+          transportCost: Number(commissionTransportCost || 0),
+          labourRatePerBag: Number(commissionLabourRate || 0),
+          commissionRatePerKg: Number(commissionRatePerKg || 0),
+          otherCost: Number(commissionOtherCost || 0),
+
+          notes: commissionNotes.trim(),
+          reason: commissionEditReason.trim(),
+        }),
+      }
+    );
+
+    toast.success(
+      result.message || "Commission Invoice updated successfully"
+    );
+
+    setEditingCommissionInvoice(null);
+    setCommissionEditReason("");
+
+    await loadCommissionInvoices();
+    await loadCommissionLots();
+  } catch (error) {
+    toast.error(error.message);
+  } finally {
+    setCommissionEditSaving(false);
+  }
+}
+function resetCommissionReportFilters() {
+  setCommissionReportFilters({
+    startDate: "",
+    endDate: "",
+    supplierId: "",
+    lotId: "",
+  });
+
+  setCommissionSupplierSearch("");
+  setCommissionLotSearch("");
+
+  setShowCommissionSupplierSuggestions(false);
+  setShowCommissionLotSuggestions(false);
+}
+// LOAD COMMISSION REPORTS
+async function loadCommissionReports() {
+  try {
+    setCommissionReportsLoading(true);
+
+    const params = new URLSearchParams();
+
+    if (commissionReportFilters.startDate) {
+      params.set("startDate", commissionReportFilters.startDate);
+    }
+
+    if (commissionReportFilters.endDate) {
+      params.set("endDate", commissionReportFilters.endDate);
+    }
+
+    if (commissionReportFilters.supplierId) {
+      params.set("supplierId", commissionReportFilters.supplierId);
+    }
+
+    if (commissionReportFilters.lotId) {
+      params.set("lotId", commissionReportFilters.lotId);
+    }
+
+    const result = await apiRequest(
+      `/commission/reports?${params.toString()}`
+    );
+setCommissionReports({
+  summary: result.summary || {},
+  invoices: result.data || [],
+  supplierOptions: result.supplierOptions || [],
+  lotOptions: result.lotOptions || [],
+});
+
+  } catch (error) {
+    toast.error(error.message);
+  } finally {
+    setCommissionReportsLoading(false);
+  }
+}
+
 
 async function loadLots() {
   try {
@@ -2269,6 +2490,17 @@ useEffect(() => {
     loadLots();
   }
   if (activePage === "Commission Management") loadCommissionLots();
+
+if (activePage === "Commission History") {
+  loadCommissionInvoices();
+}
+
+if (activePage === "Commission Reports") {
+  loadCommissionReports();
+  loadSuppliers();
+  loadLots();
+}
+
 }, [activePage]);
  
 
@@ -10325,6 +10557,1511 @@ function renderCommissionManagement() {
   );
 }
 
+function renderCommissionHistory() {
+  const summaryCard = {
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 7,
+    padding: 16,
+    boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+  };
+
+  const tableHeaderStyle = {
+    padding: "11px 12px",
+    background: "#f1f5f9",
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: 700,
+    textAlign: "left",
+    whiteSpace: "nowrap",
+    borderBottom: "1px solid #e2e8f0",
+  };
+
+  const tableCellStyle = {
+    padding: "11px 12px",
+    fontSize: 12,
+    color: "#334155",
+    borderBottom: "1px solid #e2e8f0",
+    whiteSpace: "nowrap",
+  };
+
+  const completedInvoices = commissionInvoices.filter(
+    (invoice) => invoice.status === "COMPLETED"
+  );
+
+  const cancelledInvoices = commissionInvoices.filter(
+    (invoice) => invoice.status === "CANCELLED"
+  );
+
+  const totalBags = completedInvoices.reduce(
+    (sum, invoice) => sum + Number(invoice.totalBags || 0),
+    0
+  );
+
+  const totalNetPayable = completedInvoices.reduce(
+    (sum, invoice) => sum + Number(invoice.netSupplierPayable || 0),
+    0
+  );
+
+  return (
+    <div
+      className="panel"
+      style={{
+        padding: 16,
+        background: "#f8fafc",
+        minHeight: "100%",
+      }}
+    >
+      {/* PAGE HEADER */}
+      <div
+        style={{
+          background: "#172554",
+          borderRadius: 7,
+          padding: "17px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              color: "#ffffff",
+              fontSize: 19,
+              fontWeight: 700,
+              margin: 0,
+            }}
+          >
+            Commission Invoice History
+          </h2>
+
+          <p
+            style={{
+              color: "#cbd5e1",
+              fontSize: 11,
+              margin: "5px 0 0",
+            }}
+          >
+            View, edit and manage completed commission invoices
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={loadCommissionInvoices}
+          disabled={commissionHistoryLoading}
+          style={{
+            background: "#ffffff",
+            color: "#172554",
+            border: "none",
+            padding: "8px 14px",
+            fontSize: 12,
+            fontWeight: 600,
+            opacity: commissionHistoryLoading ? 0.6 : 1,
+          }}
+        >
+          {commissionHistoryLoading ? "Loading..." : "↻ Refresh"}
+        </button>
+      </div>
+
+      {/* SUMMARY CARDS */}
+
+
+      
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        {[
+          {
+            label: "Total Invoices",
+            value: commissionInvoices.length,
+            color: "#2563eb",
+          },
+          {
+            label: "Completed Invoices",
+            value: completedInvoices.length,
+            color: "#16a34a",
+          },
+          {
+            label: "Cancelled Invoices",
+            value: cancelledInvoices.length,
+            color: "#dc2626",
+          },
+          {
+            label: "Total Bags",
+            value: totalBags.toLocaleString(),
+            color: "#f97316",
+          },
+          {
+            label: "Net Supplier Payable",
+            value: totalNetPayable.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+            color: "#0d9488",
+          },
+        ].map((card) => (
+          <div
+            key={card.label}
+            style={{
+              ...summaryCard,
+              borderTop: `3px solid ${card.color}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#64748b",
+                textTransform: "uppercase",
+              }}
+            >
+              {card.label}
+            </div>
+
+            <div
+              style={{
+                fontSize: 23,
+                fontWeight: 800,
+                color: "#172554",
+                marginTop: 7,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {card.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* EDIT INVOICE FORM */}
+      {editingCommissionInvoice && (
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 7,
+            marginBottom: 16,
+            boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              background: "#172554",
+              padding: "14px 16px",
+            }}
+          >
+            <h3
+              style={{
+                color: "#ffffff",
+                fontSize: 15,
+                margin: 0,
+                fontWeight: 700,
+              }}
+            >
+              Edit Commission Invoice
+            </h3>
+
+            <p
+              style={{
+                color: "#cbd5e1",
+                fontSize: 11,
+                margin: "5px 0 0",
+              }}
+            >
+              Invoice: {editingCommissionInvoice.invoiceNumber}
+            </p>
+          </div>
+
+          <div style={{ padding: 16 }}>
+            <div style={{ marginBottom: 15 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  color: "#475569",
+                  fontWeight: 600,
+                  marginBottom: 5,
+                }}
+              >
+                Edit Reason *
+              </label>
+
+              <textarea
+                value={commissionEditReason}
+                onChange={(e) => setCommissionEditReason(e.target.value)}
+                placeholder="Enter reason for editing"
+                rows={2}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 5,
+                  fontSize: 12,
+                  boxSizing: "border-box",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+
+            <h4
+              style={{
+                color: "#172554",
+                fontSize: 13,
+                fontWeight: 700,
+                margin: "0 0 10px",
+              }}
+            >
+              Invoice Items
+            </h4>
+
+            <div style={{ overflowX: "auto", marginBottom: 16 }}>
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: 550,
+                  borderCollapse: "collapse",
+                }}
+              >
+                <thead>
+                  <tr>
+                    {["SL", "BAGS", "WEIGHT (KG)", "RATE / KG", "AMOUNT"].map(
+                      (heading) => (
+                        <th key={heading} style={tableHeaderStyle}>
+                          {heading}
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {commissionItems.map((item, index) => (
+                    <tr key={index}>
+                      <td style={tableCellStyle}>{index + 1}</td>
+
+                      {["bags", "weightKg", "ratePerKg"].map((field) => (
+                        <td key={field} style={{ padding: 6 }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item[field]}
+                            onChange={(e) =>
+                              setCommissionItems((prev) =>
+                                prev.map((row, i) =>
+                                  i === index
+                                    ? { ...row, [field]: e.target.value }
+                                    : row
+                                )
+                              )
+                            }
+                            style={{
+                              width: "100%",
+                              minWidth: 85,
+                              padding: 8,
+                              border: "1px solid #cbd5e1",
+                              borderRadius: 5,
+                              fontSize: 12,
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </td>
+                      ))}
+
+                      <td
+                        style={{
+                          ...tableCellStyle,
+                          fontWeight: 700,
+                          color: "#172554",
+                        }}
+                      >
+                        {(
+                          Number(item.weightKg || 0) *
+                          Number(item.ratePerKg || 0)
+                        ).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <h4
+              style={{
+                color: "#172554",
+                fontSize: 13,
+                fontWeight: 700,
+                margin: "0 0 12px",
+              }}
+            >
+              Other Charges & Deductions
+            </h4>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))",
+                gap: 12,
+              }}
+            >
+              {[
+                ["Transport Cost", commissionTransportCost, setCommissionTransportCost],
+                ["Labour Rate / Bag", commissionLabourRate, setCommissionLabourRate],
+                ["Commission Rate / KG", commissionRatePerKg, setCommissionRatePerKg],
+                ["Other Cost", commissionOtherCost, setCommissionOtherCost],
+              ].map(([label, value, setter]) => (
+                <div key={label}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      color: "#475569",
+                      fontWeight: 600,
+                      marginBottom: 5,
+                    }}
+                  >
+                    {label}
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={value}
+                    onChange={(e) => setter(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "9px 10px",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 5,
+                      fontSize: 12,
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  color: "#475569",
+                  fontWeight: 600,
+                  marginBottom: 5,
+                }}
+              >
+                Notes
+              </label>
+
+              <textarea
+                value={commissionNotes}
+                onChange={(e) => setCommissionNotes(e.target.value)}
+                rows={2}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 5,
+                  fontSize: 12,
+                  boxSizing: "border-box",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+                flexWrap: "wrap",
+                marginTop: 16,
+              }}
+            >
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setEditingCommissionInvoice(null);
+                  setCommissionEditReason("");
+                }}
+                disabled={commissionEditSaving}
+                style={{ padding: "9px 16px" }}
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                className="primary-button"
+                onClick={updateCommissionInvoice}
+                disabled={commissionEditSaving || !commissionEditReason.trim()}
+                style={{ padding: "9px 16px" }}
+              >
+                {commissionEditSaving ? "Updating..." : "Update Invoice"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HISTORY TABLE */}
+      <div
+        style={{
+          background: "#ffffff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 7,
+          boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "14px 16px",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <div>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 14,
+                fontWeight: 700,
+                color: "#172554",
+              }}
+            >
+              All Commission Invoices
+            </h3>
+
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: 10,
+                color: "#64748b",
+              }}
+            >
+              Complete invoice records and transaction status
+            </p>
+          </div>
+
+          <span
+            style={{
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              border: "1px solid #bfdbfe",
+              borderRadius: 20,
+              padding: "4px 10px",
+              fontSize: 10,
+              fontWeight: 700,
+            }}
+          >
+            {commissionInvoices.length} INVOICES
+          </span>
+        </div>
+
+        {commissionHistoryError && (
+          <div
+            style={{
+              margin: 12,
+              padding: 11,
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              borderRadius: 5,
+              color: "#b91c1c",
+              fontSize: 12,
+            }}
+          >
+            {commissionHistoryError}
+          </div>
+        )}
+
+        {commissionHistoryLoading ? (
+          <div
+            style={{
+              padding: 45,
+              textAlign: "center",
+              color: "#64748b",
+              fontSize: 12,
+            }}
+          >
+            Loading commission invoices...
+          </div>
+        ) : commissionInvoices.length === 0 ? (
+          <div style={{ padding: "45px 15px", textAlign: "center" }}>
+            <div style={{ fontSize: 30, marginBottom: 10 }}>📋</div>
+
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: "#334155",
+              }}
+            >
+              No Commission Invoices Found
+            </div>
+
+            <p
+              style={{
+                fontSize: 11,
+                color: "#94a3b8",
+                marginTop: 5,
+              }}
+            >
+              Completed commission invoices will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="table-wrapper">
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: 1100,
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={tableHeaderStyle}>INVOICE DATE</th>
+                  <th style={tableHeaderStyle}>INVOICE NUMBER</th>
+                  <th style={tableHeaderStyle}>SUPPLIER</th>
+                  <th style={tableHeaderStyle}>LOT</th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    BAGS
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    GROSS
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    DEDUCTION
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    NET PAYABLE
+                  </th>
+                  <th style={tableHeaderStyle}>STATUS</th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "center" }}>
+                    ACTION
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {commissionInvoices.map((invoice) => (
+                  <tr key={invoice._id}>
+                    <td style={tableCellStyle}>
+                      {invoice.invoiceDate
+                        ? new Date(invoice.invoiceDate).toLocaleDateString()
+                        : "-"}
+                    </td>
+
+                    <td
+                      style={{
+                        ...tableCellStyle,
+                        fontWeight: 700,
+                        color: "#172554",
+                      }}
+                    >
+                      {invoice.invoiceNumber || "-"}
+                    </td>
+
+                    <td style={tableCellStyle}>
+                      {invoice.supplierName || invoice.supplierId?.name || "-"}
+                    </td>
+
+                    <td style={tableCellStyle}>
+                      {invoice.lotCode || "-"}
+                    </td>
+
+                    <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                      {Number(invoice.totalBags || 0).toLocaleString()}
+                    </td>
+
+                    <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                      {Number(invoice.grossAmount || 0).toFixed(2)}
+                    </td>
+
+                    <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                      {Number(invoice.totalDeduction || 0).toFixed(2)}
+                    </td>
+
+                    <td
+                      style={{
+                        ...tableCellStyle,
+                        textAlign: "right",
+                        fontWeight: 700,
+                        color: "#172554",
+                      }}
+                    >
+                      {Number(invoice.netSupplierPayable || 0).toFixed(2)}
+                    </td>
+
+                    <td style={tableCellStyle}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "4px 9px",
+                          borderRadius: 20,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background:
+                            invoice.status === "COMPLETED"
+                              ? "#f0fdf4"
+                              : "#fef2f2",
+                          color:
+                            invoice.status === "COMPLETED"
+                              ? "#15803d"
+                              : "#dc2626",
+                          border:
+                            invoice.status === "COMPLETED"
+                              ? "1px solid #bbf7d0"
+                              : "1px solid #fecaca",
+                        }}
+                      >
+                        {invoice.status || "-"}
+                      </span>
+                    </td>
+
+                    <td style={{ ...tableCellStyle, textAlign: "center" }}>
+                      {invoice.status === "COMPLETED" ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => openCommissionInvoiceEdit(invoice)}
+                            style={{ padding: "5px 9px", fontSize: 11 }}
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => cancelCommissionInvoice(invoice._id)}
+                            style={{ padding: "5px 9px", fontSize: 11 }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ color: "#94a3b8", fontSize: 11 }}>
+                          No Action
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
+
+function renderCommissionReports() {
+  const summary = commissionReports?.summary || {};
+
+  const reportCards = [
+    ["Completed Invoices", summary.completedInvoices || 0, "#2563eb"],
+    ["Cancelled Invoices", summary.cancelledInvoices || 0, "#dc2626"],
+    ["Total Bags", summary.totalBags || 0, "#0891b2"],
+    ["Total Weight (KG)", summary.totalWeightKg || 0, "#7c3aed"],
+    ["Gross Amount", summary.grossAmount || 0, "#16a34a"],
+    ["Pocket Lot Profit", summary.pocketLotProfit || 0, "#16a34a"],
+    ["Transport Cost", summary.transportCost || 0, "#d97706"],
+    ["Labour Cost", summary.labourCost || 0, "#0d9488"],
+    ["Commission Cost", summary.commissionCost || 0, "#6366f1"],
+    ["Other Cost", summary.otherCost || 0, "#64748b"],
+    ["Total Deduction", summary.totalDeduction || 0, "#ea580c"],
+    ["Net Supplier Payable", summary.netSupplierPayable || 0, "#15803d"],
+  ];
+
+  const formatNumber = (value) =>
+    Number(value || 0).toLocaleString("en-BD", {
+      maximumFractionDigits: 2,
+    });
+
+  return (
+    <div
+      className="panel"
+      style={{
+        padding: 16,
+        background: "#f8fafc",
+        minHeight: "100%",
+      }}
+    >
+      {/* HEADER */}
+      <div
+        style={{
+          background: "#172554",
+          borderRadius: 7,
+          padding: "17px 20px",
+          marginBottom: 16,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              color: "#ffffff",
+              fontSize: 19,
+              fontWeight: 700,
+            }}
+          >
+            Commission Reports
+          </h2>
+
+          <p
+            style={{
+              margin: "5px 0 0",
+              color: "#cbd5e1",
+              fontSize: 11,
+            }}
+          >
+            Commission invoice summary and financial reports
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadCommissionReports}
+          disabled={commissionReportsLoading}
+          style={{
+            background: "#ffffff",
+            color: "#172554",
+            border: "none",
+            borderRadius: 5,
+            padding: "9px 15px",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: commissionReportsLoading ? "not-allowed" : "pointer",
+            opacity: commissionReportsLoading ? 0.7 : 1,
+          }}
+        >
+          {commissionReportsLoading ? "Loading..." : "↻ Refresh Reports"}
+        </button>
+      </div>
+
+      {commissionReportsLoading ? (
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 7,
+            padding: 30,
+            textAlign: "center",
+            color: "#64748b",
+            fontSize: 13,
+          }}
+        >
+          Loading commission reports...
+        </div>
+      ) : (
+        <>
+      
+  {/* COMMISSION REPORT FILTERS */}
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e2e8f0",
+      borderRadius: 7,
+      padding: 16,
+      marginBottom: 18,
+    }}
+  >
+    <h3
+      style={{
+        margin: "0 0 14px",
+        fontSize: 14,
+        color: "#172554",
+        fontWeight: 700,
+      }}
+    >
+      Filter Commission Reports
+    </h3>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: 12,
+        alignItems: "end",
+      }}
+    >
+      <div>
+        <label style={{ display: "block", fontSize: 11, marginBottom: 6 }}>
+          Start Date
+        </label>
+        <input
+          type="date"
+          value={commissionReportFilters.startDate}
+          onChange={(e) =>
+            setCommissionReportFilters((prev) => ({
+              ...prev,
+              startDate: e.target.value,
+            }))
+          }
+          style={{ width: "100%", padding: 9, border: "1px solid #cbd5e1", borderRadius: 5 }}
+        />
+      </div>
+
+      <div>
+        <label style={{ display: "block", fontSize: 11, marginBottom: 6 }}>
+          End Date
+        </label>
+        <input
+          type="date"
+          value={commissionReportFilters.endDate}
+          onChange={(e) =>
+            setCommissionReportFilters((prev) => ({
+              ...prev,
+              endDate: e.target.value,
+            }))
+          }
+          style={{ width: "100%", padding: 9, border: "1px solid #cbd5e1", borderRadius: 5 }}
+        />
+      </div>
+
+<div style={{ position: "relative" }}>
+  <label style={{ display: "block", fontSize: 11, marginBottom: 6 }}>
+    Supplier
+  </label>
+
+  <input
+    type="text"
+    value={commissionSupplierSearch}
+    placeholder="Search Supplier..."
+    onFocus={() => setShowCommissionSupplierSuggestions(true)}
+    onChange={(e) => {
+      setCommissionSupplierSearch(e.target.value);
+      setShowCommissionSupplierSuggestions(true);
+
+      setCommissionReportFilters((prev) => ({
+        ...prev,
+        supplierId: "",
+      }));
+    }}
+    style={{
+      width: "100%",
+      padding: 9,
+      border: "1px solid #cbd5e1",
+      borderRadius: 5,
+      boxSizing: "border-box",
+    }}
+  />
+
+  {showCommissionSupplierSuggestions && (
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        left: 0,
+        right: 0,
+        background: "#ffffff",
+        border: "1px solid #cbd5e1",
+        borderRadius: 5,
+        maxHeight: 180,
+        overflowY: "auto",
+        zIndex: 100,
+      }}
+    >
+      <div
+        onClick={() => {
+          setCommissionReportFilters((prev) => ({
+            ...prev,
+            supplierId: "",
+          }));
+          setCommissionSupplierSearch("");
+          setShowCommissionSupplierSuggestions(false);
+        }}
+        style={{ padding: 9, cursor: "pointer", fontSize: 12 }}
+      >
+        All Suppliers
+      </div>
+
+      {(commissionReports?.supplierOptions || [])
+        .filter((supplier) =>
+          (supplier.supplierName || "")
+            .toLowerCase()
+            .includes(commissionSupplierSearch.toLowerCase())
+        )
+        .map((supplier) => (
+          <div
+            key={supplier._id}
+            onClick={() => {
+              setCommissionReportFilters((prev) => ({
+                ...prev,
+                supplierId: supplier._id,
+              }));
+              setCommissionSupplierSearch(supplier.supplierName);
+              setShowCommissionSupplierSuggestions(false);
+            }}
+            style={{
+              padding: 9,
+              cursor: "pointer",
+              fontSize: 12,
+              borderTop: "1px solid #f1f5f9",
+            }}
+          >
+            {supplier.supplierName}
+          </div>
+        ))}
+    </div>
+  )}
+</div>
+
+    <div style={{ position: "relative" }}>
+  <label style={{ display: "block", fontSize: 11, marginBottom: 6 }}>
+    Lot
+  </label>
+
+  <input
+    type="text"
+    value={commissionLotSearch}
+    placeholder="Search Lot..."
+    onFocus={() => setShowCommissionLotSuggestions(true)}
+    onChange={(e) => {
+      setCommissionLotSearch(e.target.value);
+      setShowCommissionLotSuggestions(true);
+
+      setCommissionReportFilters((prev) => ({
+        ...prev,
+        lotId: "",
+      }));
+    }}
+    style={{
+      width: "100%",
+      padding: 9,
+      border: "1px solid #cbd5e1",
+      borderRadius: 5,
+      boxSizing: "border-box",
+    }}
+  />
+
+  {showCommissionLotSuggestions && (
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        left: 0,
+        right: 0,
+        background: "#ffffff",
+        border: "1px solid #cbd5e1",
+        borderRadius: 5,
+        maxHeight: 180,
+        overflowY: "auto",
+        zIndex: 100,
+      }}
+    >
+      <div
+        onClick={() => {
+          setCommissionReportFilters((prev) => ({
+            ...prev,
+            lotId: "",
+          }));
+          setCommissionLotSearch("");
+          setShowCommissionLotSuggestions(false);
+        }}
+        style={{ padding: 9, cursor: "pointer", fontSize: 12 }}
+      >
+        All Lots
+      </div>
+
+      {(commissionReports?.lotOptions || [])
+        .filter((lot) =>
+          (lot.lotCode || "")
+            .toLowerCase()
+            .includes(commissionLotSearch.toLowerCase())
+        )
+        .map((lot) => (
+          <div
+            key={lot._id}
+            onClick={() => {
+              setCommissionReportFilters((prev) => ({
+                ...prev,
+                lotId: lot._id,
+              }));
+              setCommissionLotSearch(lot.lotCode);
+              setShowCommissionLotSuggestions(false);
+            }}
+            style={{
+              padding: 9,
+              cursor: "pointer",
+              fontSize: 12,
+              borderTop: "1px solid #f1f5f9",
+            }}
+          >
+            {lot.lotCode}
+          </div>
+        ))}
+    </div>
+  )}
+</div>
+      <button
+        type="button"
+        onClick={loadCommissionReports}
+        disabled={commissionReportsLoading}
+        style={{
+          padding: 10,
+          background: "#172554",
+          color: "#ffffff",
+          border: "none",
+          borderRadius: 5,
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        Apply Filters
+      </button>
+
+      <button
+  type="button"
+  onClick={() => {
+    resetCommissionReportFilters();
+    setTimeout(() => loadCommissionReports(), 0);
+  }}
+  style={{
+    padding: 10,
+    background: "#64748b",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: 5,
+    fontWeight: 700,
+    cursor: "pointer",
+  }}
+>
+  ↻ Reset Filters
+</button>
+    </div>
+  </div>
+
+  {/* SUMMARY CARDS */}
+
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 12,
+              marginBottom: 18,
+            }}
+          >
+            {reportCards.map(([label, value, color]) => (
+              <div
+                key={label}
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderTop: `3px solid ${color}`,
+                  borderRadius: 7,
+                  padding: 16,
+                  boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#64748b",
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  {label}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 700,
+                    marginTop: 8,
+                    color: "#172554",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {formatNumber(value)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* INVOICE REPORT TABLE */}
+          <div
+           id="commission-invoice-report"
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 7,
+              overflow: "hidden",
+            }}
+          >
+            <style>{`
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  @media print {
+    body * {
+      visibility: hidden !important;
+    }
+
+    #commission-invoice-report,
+    #commission-invoice-report * {
+      visibility: visible !important;
+    }
+
+    #commission-invoice-report {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      border: none !important;
+      overflow: visible !important;
+    }
+
+    #commission-invoice-report .no-print {
+      display: none !important;
+    }
+
+    #commission-invoice-report div {
+      overflow: visible !important;
+    }
+
+    #commission-invoice-report table {
+      width: 100% !important;
+      min-width: 0 !important;
+      border-collapse: collapse !important;
+    }
+
+    #commission-invoice-report th,
+    #commission-invoice-report td {
+      font-size: 13px !important;
+      padding: 5px !important;
+    }
+  }
+`}</style>
+            <div
+              style={{
+                padding: "14px 16px",
+                borderBottom: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    margin: 0,
+                    color: "#172554",
+                    fontSize: 14,
+                    fontWeight: 700,
+                  }}
+                >
+                  Commission Invoice Report
+                </h3>
+
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    color: "#64748b",
+                    fontSize: 11,
+                  }}
+                >
+                  Invoice-wise commission and supplier payable details
+                </p>
+              </div>
+
+             
+<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+  <span
+    style={{
+      background: "#f1f5f9",
+      color: "#475569",
+      padding: "5px 10px",
+      borderRadius: 5,
+      fontSize: 11,
+      fontWeight: 600,
+    }}
+  >
+    Total Records: {(commissionReports?.invoices || []).length}
+  </span>
+
+  <button
+  type="button"
+  className="no-print"
+  onClick={() => window.print()}
+    style={{
+      background: "#1d4ed8",
+      color: "#ffffff",
+      border: "none",
+      borderRadius: 5,
+      padding: "7px 13px",
+      fontSize: 11,
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    🖨 Print Report
+  </button>
+</div>
+
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table
+                className="data-table"
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  minWidth: 1050,
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "#f1f5f9" }}>
+                    {[
+                      "Invoice Number",
+                      "Date",
+                      "Supplier",
+                      "Lot Code",
+                      "Bags",
+                      "Weight KG",
+                      "Gross",
+                      "Deduction",
+                      "Net Payable",
+                      "Pocket Lot Profit",
+                      "Status",
+                    ].map((heading) => (
+                      <th
+                        key={heading}
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: "#475569",
+                          textAlign: "left",
+                          whiteSpace: "nowrap",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {(commissionReports?.invoices || []).map((invoice) => (
+                    <tr key={invoice._id}>
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#172554",
+                          borderBottom: "1px solid #e2e8f0",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {invoice.invoiceNumber || "-"}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          color: "#475569",
+                          borderBottom: "1px solid #e2e8f0",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {invoice.invoiceDate
+                          ? new Date(invoice.invoiceDate).toLocaleDateString()
+                          : "-"}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          color: "#334155",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {invoice.supplierName || "-"}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          color: "#475569",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {invoice.lotCode || "-"}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          color: "#334155",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {invoice.totalBags ?? 0}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          color: "#334155",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {Number(invoice.totalWeightKg || 0).toFixed(2)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          color: "#334155",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {formatNumber(invoice.grossAmount)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          color: "#dc2626",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {formatNumber(invoice.totalDeduction)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: "#15803d",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {formatNumber(invoice.netSupplierPayable)}
+                      </td>
+<td
+  style={{
+    padding: "11px 12px",
+    fontSize: 12,
+    fontWeight: 700,
+    color:
+      Number(invoice.pocketLotProfit) >= 0
+        ? "#15803d"
+        : "#dc2626",
+    borderBottom: "1px solid #e2e8f0",
+    whiteSpace: "nowrap",
+  }}
+>
+  {invoice.pocketLotProfit === null ||
+  invoice.pocketLotProfit === undefined
+    ? "-"
+    : formatNumber(invoice.pocketLotProfit)}
+</td>
+                      <td
+                        style={{
+                          padding: "11px 12px",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "4px 9px",
+                            borderRadius: 4,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background:
+                              invoice.status === "CANCELLED"
+                                ? "#fee2e2"
+                                : "#dcfce7",
+                            color:
+                              invoice.status === "CANCELLED"
+                                ? "#b91c1c"
+                                : "#15803d",
+                          }}
+                        >
+                          {invoice.status || "-"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {(commissionReports?.invoices || []).length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={11}
+                        style={{
+                          textAlign: "center",
+                          padding: 30,
+                          color: "#94a3b8",
+                          fontSize: 12,
+                        }}
+                      >
+                        No commission report records found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 
 async function createCommissionInvoice() {
   if (!selectedCommissionLot) {
@@ -15734,30 +17471,104 @@ async function handleAdminLogout() {
         </div>
 
         <nav className="navigation">
-          {navigation.map((group) => (
-            <div className="nav-group" key={group.title}>
-              <p className="nav-heading">{group.title}</p>
-              {group.items.map((item) => {
-                const Icon = item.icon;
+       {navigation.map((group) => (
+  <div className="nav-group" key={group.title}>
+    <p className="nav-heading">{group.title}</p>
+
+    {group.items.map((item) => {
+      const Icon = item.icon;
+      const hasChildren = Array.isArray(item.children);
+      const isExpanded = expandedMenus[item.label] || false;
+
+      return (
+        <div key={item.label}>
+          <button
+            className={`nav-item ${
+              activePage === item.label ||
+              (hasChildren &&
+                item.children.some(
+                  (child) => child.label === activePage
+                ))
+                ? "active"
+                : ""
+            }`}
+            onClick={() => {
+              if (hasChildren) {
+                setExpandedMenus((prev) => ({
+                  ...prev,
+                  [item.label]: !prev[item.label],
+                }));
+                return;
+              }
+
+              setActivePage(item.label);
+              setSearchText("");
+              setShowForm(false);
+              setSidebarOpen(false);
+            }}
+          >
+            <Icon size={19} />
+
+            <span>{item.label}</span>
+
+            {item.label === "Products" && (
+              <span className="nav-count">{products.length}</span>
+            )}
+
+            {hasChildren && (
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: 12,
+                  transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease",
+                }}
+              >
+                ▼
+              </span>
+            )}
+          </button>
+
+          {hasChildren && isExpanded && (
+            <div
+              style={{
+                marginLeft: 18,
+                paddingLeft: 12,
+                borderLeft: "2px solid var(--border-color, #e5e7eb)",
+              }}
+            >
+              {item.children.map((child) => {
+                const ChildIcon = child.icon;
+
                 return (
                   <button
-                    key={item.label}
-                    className={`nav-item ${activePage === item.label ? "active" : ""}`}
+                    key={child.label}
+                    className={`nav-item ${
+                      activePage === child.label ? "active" : ""
+                    }`}
+                    style={{
+                      fontSize: 13,
+                      paddingLeft: 10,
+                    }}
                     onClick={() => {
-                      setActivePage(item.label);
+                      setActivePage(child.label);
                       setSearchText("");
                       setShowForm(false);
                       setSidebarOpen(false);
                     }}
                   >
-                    <Icon size={19} />
-                    <span>{item.label}</span>
-                    {item.label === "Products" && <span className="nav-count">{products.length}</span>}
+                    <ChildIcon size={17} />
+                    <span>{child.label}</span>
                   </button>
                 );
               })}
             </div>
-          ))}
+          )}
+        </div>
+      );
+    })}
+  </div>
+))}
         </nav>
 
         <div className="sidebar-bottom">
@@ -15824,6 +17635,8 @@ async function handleAdminLogout() {
   {activePage === "Sales" && renderSales()}
   {activePage === "Purchases" && renderPurchases()}
   {activePage === "Commission Management" && renderCommissionManagement()}
+ {activePage === "Commission History" && renderCommissionHistory()}
+{activePage === "Commission Reports" && renderCommissionReports()}
   {activePage === "Activity Log" && renderActivityLog()}
   {![
     "Dashboard",
@@ -15835,6 +17648,8 @@ async function handleAdminLogout() {
     "Categories",
     "Purchases",
    "Commission Management",
+     "Commission History",
+    "Commission Reports",
     "Activity Log",
   ].includes(activePage) && (
     <div className="panel" style={{ padding: 30 }}>
@@ -15871,6 +17686,7 @@ async function handleAdminLogout() {
 {showSupplierStatement && renderSupplierStatementModal()}
 {showCustomerStatement && renderCustomerStatementModal()}
 {showPaymentHistory && renderPaymentHistoryModal()}
+
     </div>
   );
 }
