@@ -30,7 +30,20 @@ const navigation = [
       { label: "Dashboard", icon: LayoutDashboard },
       { label: "Products", icon: Package },
       { label: "Categories", icon: Tags },
-      { label: "Sales", icon: ShoppingCart },
+     
+{
+  label: "Sales",
+  icon: ShoppingCart,
+  children: [
+    { label: "Sales Dashboard", icon: LayoutDashboard },
+    { label: "New Sales Invoice", icon: Plus },
+    { label: "Sales Invoice History", icon: ClipboardList },
+    { label: "Sales Return", icon: ArrowUpRight },
+    { label: "Sales Collection", icon: Wallet },
+    { label: "Sales Reports", icon: BarChart3 },
+  ],
+},
+
       { label: "Purchases", icon: ShoppingBag },
       { label: "Customers", icon: Users },
       { label: "Suppliers", icon: Truck },
@@ -133,6 +146,13 @@ const fieldStyle = {
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
+ useEffect(() => {
+  if (activePage === "New Sales Invoice") {
+    openSalesForm();
+  }
+}, [activePage]);
+ 
+ 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 // ADMIN AUTHENTICATION
 const [adminUser, setAdminUser] = useState(null);
@@ -504,6 +524,13 @@ const [salesStatusFilter, setSalesStatusFilter] = useState("");
 const [salesStartDate, setSalesStartDate] = useState("");
 const [salesEndDate, setSalesEndDate] = useState("");
 
+// ======================================
+// SALES DASHBOARD STATES
+// ======================================
+
+const [salesDashboard, setSalesDashboard] = useState(null);
+const [salesDashboardLoading, setSalesDashboardLoading] = useState(false);
+const [salesDashboardPeriod, setSalesDashboardPeriod] = useState("7");
 // Sales Invoice Form
 const [showSalesForm, setShowSalesForm] = useState(false);
 const [salesSaving, setSalesSaving] = useState(false);
@@ -655,6 +682,25 @@ async function loadSalesInvoices(overrides = {}) {
   }
 }
 
+// ======================================
+// LOAD SALES DASHBOARD
+// ======================================
+
+async function loadSalesDashboard(period = salesDashboardPeriod) {
+  try {
+    setSalesDashboardLoading(true);
+
+    const result = await apiRequest(
+      `/sales/dashboard/summary?period=${period}`
+    );
+
+    setSalesDashboard(result.data || null);
+  } catch (error) {
+    toast.error(error.message || "Sales Dashboard load করা যায়নি");
+  } finally {
+    setSalesDashboardLoading(false);
+  }
+}
 
 // Search Customer for Sales
 async function searchSalesCustomers(value) {
@@ -2270,6 +2316,13 @@ useEffect(() => {
 useEffect(() => {
   if (activePage === "Sales") {
     loadSalesInvoices();
+  }
+}, [activePage]);
+
+// Load Sales Dashboard when dashboard page opens
+useEffect(() => {
+  if (activePage === "Sales Dashboard") {
+    loadSalesDashboard();
   }
 }, [activePage]);
 
@@ -12283,99 +12336,489 @@ return (
         </button>
       </div>
 
-      {/* SUMMARY CARDS */}
+    
      
-{/* SUMMARY CARDS */}
-<div style={{
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-  gap: 10,
-  marginBottom: 18,
-}}>
-  {[
-    {
-      title: "Total Invoices",
-      value: salesInvoices.filter((i) => {
-        const netSales = Number(
-          i.netSalesAmount ??
-          (Number(i.grandTotal || 0) - Number(i.returnedAmount || 0))
-        );
-        return netSales > 0;
-      }).length,
-      color: "#2563eb",
-      icon: "📄",
-    },
-    {
-      title: "Total Bags Sold",
-      value: salesInvoices.reduce((s, i) => {
-        const currentBags =
-          Number(i.totalBags || 0) - Number(i.returnedBags || 0);
-        return s + Math.max(0, currentBags);
-      }, 0),
-      color: "#16a34a",
-      icon: "📦",
-    },
-    {
-      title: "Total KG Sold",
-      value: salesInvoices.reduce((s, i) => {
-        const currentWeight =
-          Number(i.totalWeightKg || 0) -
-          Number(i.returnedWeightKg || 0);
-        return s + Math.max(0, currentWeight);
-      }, 0).toLocaleString("en-BD"),
-      color: "#7c3aed",
-      icon: "⚖️",
-    },
-    {
-      title: "Total Sales",
-      value: `৳ ${salesInvoices.reduce((s, i) => {
-        const currentSales = Number(
-          i.netSalesAmount ??
-          (Number(i.grandTotal || 0) - Number(i.returnedAmount || 0))
-        );
-        return s + Math.max(0, currentSales);
-      }, 0).toLocaleString("en-BD")}`,
-      color: "#ea580c",
-      icon: "৳",
-    },
-  ].map((item) => (
-    <div key={item.title} style={{
-      padding: "13px 15px",
-      border: "1px solid #e2e8f0",
-      borderRadius: 9,
-      background: "#fff",
-      borderTop: `3px solid ${item.color}`,
-    }}>
+
+
+{/* SALES DASHBOARD */}
+{(activePage === "Sales Dashboard" || activePage === "Sales") && (
+  <>
+    {salesDashboardLoading && !salesDashboard ? (
       <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
+        padding: 25,
+        textAlign: "center",
+        background: "#fff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 9,
       }}>
-        <span style={{
-          fontSize: 11,
-          color: "#64748b",
-          fontWeight: 700,
-        }}>
-          {item.title}
-        </span>
-        <span style={{ fontSize: 17 }}>{item.icon}</span>
+        Loading Sales Dashboard...
       </div>
+    ) : salesDashboard ? (
+      <>
+        {/* TODAY SUMMARY */}
+        <h3 style={{
+          margin: "0 0 10px",
+          color: "#172554",
+          fontSize: 15,
+          fontWeight: 800,
+        }}>
+          Today's Sales Summary
+        </h3>
 
-      <h3 style={{
-        margin: "8px 0 0",
-        color: item.color,
-        fontSize: 19,
-        fontWeight: 800,
-      }}>
-        {item.value}
-      </h3>
-    </div>
-  ))}
-</div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+          marginBottom: 20,
+        }}>
+          {[
+            {
+              title: "Today's Invoices",
+              value: salesDashboard.today.invoices,
+              color: "#2563eb",
+              icon: "📄",
+            },
+            {
+              title: "Today's Sales",
+              value: `৳ ${Number(salesDashboard.today.netSales || 0).toLocaleString("en-BD")}`,
+              color: "#ea580c",
+              icon: "💰",
+            },
+            {
+              title: "Today's Bags",
+              value: Number(salesDashboard.today.bags || 0).toLocaleString("en-BD"),
+              color: "#16a34a",
+              icon: "📦",
+            },
+            {
+              title: "Today's Weight KG",
+              value: Number(salesDashboard.today.weightKg || 0).toLocaleString("en-BD"),
+              color: "#7c3aed",
+              icon: "⚖️",
+            },
+            {
+              title: "Today's Paid",
+              value: `৳ ${Number(salesDashboard.today.paid || 0).toLocaleString("en-BD")}`,
+              color: "#0891b2",
+              icon: "💵",
+            },
+          ].map((item) => (
+            <div key={item.title} style={{
+              padding: "13px 15px",
+              border: "1px solid #e2e8f0",
+              borderRadius: 9,
+              background: "#fff",
+              borderTop: `3px solid ${item.color}`,
+            }}>
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <span style={{
+                  fontSize: 11,
+                  color: "#64748b",
+                  fontWeight: 700,
+                }}>
+                  {item.title}
+                </span>
+                <span>{item.icon}</span>
+              </div>
 
+              <h3 style={{
+                margin: "8px 0 0",
+                color: item.color,
+                fontSize: 19,
+                fontWeight: 800,
+              }}>
+                {item.value}
+              </h3>
+            </div>
+          ))}
+        </div>
 
-      {/* HISTORY HEADER */}
+        {/* OVERALL SUMMARY */}
+        <h3 style={{
+          margin: "0 0 10px",
+          color: "#172554",
+          fontSize: 15,
+          fontWeight: 800,
+        }}>
+          Overall Sales Summary
+        </h3>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+          marginBottom: 20,
+        }}>
+          {[
+            {
+              title: "Total Invoices",
+              value: salesDashboard.overall.totalInvoices,
+              color: "#2563eb",
+              icon: "📄",
+            },
+            {
+              title: "Net Bags Sold",
+              value: Number(salesDashboard.overall.netBags || 0).toLocaleString("en-BD"),
+              color: "#16a34a",
+              icon: "📦",
+            },
+            {
+              title: "Net Weight KG",
+              value: Number(salesDashboard.overall.netWeightKg || 0).toLocaleString("en-BD"),
+              color: "#7c3aed",
+              icon: "⚖️",
+            },
+            {
+              title: "Net Sales",
+              value: `৳ ${Number(salesDashboard.overall.netSales || 0).toLocaleString("en-BD")}`,
+              color: "#ea580c",
+              icon: "💰",
+            },
+            {
+              title: "Total Paid",
+              value: `৳ ${Number(salesDashboard.overall.totalPaid || 0).toLocaleString("en-BD")}`,
+              color: "#0891b2",
+              icon: "💵",
+            },
+            {
+              title: "Current Due",
+              value: `৳ ${Number(salesDashboard.overall.currentDue || 0).toLocaleString("en-BD")}`,
+              color: "#dc2626",
+              icon: "⚠️",
+            },
+          ].map((item) => (
+            <div key={item.title} style={{
+              padding: "13px 15px",
+              border: "1px solid #e2e8f0",
+              borderRadius: 9,
+              background: "#fff",
+              borderTop: `3px solid ${item.color}`,
+            }}>
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <span style={{
+                  fontSize: 11,
+                  color: "#64748b",
+                  fontWeight: 700,
+                }}>
+                  {item.title}
+                </span>
+                <span>{item.icon}</span>
+              </div>
+
+              <h3 style={{
+                margin: "8px 0 0",
+                color: item.color,
+                fontSize: 19,
+                fontWeight: 800,
+              }}>
+                {item.value}
+              </h3>
+            </div>
+          ))}
+        </div>
+
+        {/* RETURN SUMMARY */}
+        <h3 style={{
+          margin: "0 0 10px",
+          color: "#172554",
+          fontSize: 15,
+          fontWeight: 800,
+        }}>
+          Sales Return Summary
+        </h3>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+          marginBottom: 20,
+        }}>
+          {[
+            {
+              title: "Total Returns",
+              value: salesDashboard.returns.totalReturns,
+              color: "#ea580c",
+            },
+            {
+              title: "Return Amount",
+              value: `৳ ${Number(salesDashboard.returns.returnAmount || 0).toLocaleString("en-BD")}`,
+              color: "#dc2626",
+            },
+            {
+              title: "Amount Adjusted",
+              value: `৳ ${Number(salesDashboard.returns.amountAdjusted || 0).toLocaleString("en-BD")}`,
+              color: "#2563eb",
+            },
+            {
+              title: "Refund Amount",
+              value: `৳ ${Number(salesDashboard.returns.refundAmount || 0).toLocaleString("en-BD")}`,
+              color: "#7c3aed",
+            },
+            {
+              title: "Returned Bags",
+              value: Number(salesDashboard.returns.returnedBags || 0).toLocaleString("en-BD"),
+              color: "#c2410c",
+            },
+            {
+              title: "Returned Weight KG",
+              value: Number(salesDashboard.returns.returnedWeightKg || 0).toLocaleString("en-BD"),
+              color: "#64748b",
+            },
+          ].map((item) => (
+            <div key={item.title} style={{
+              padding: "13px 15px",
+              border: "1px solid #e2e8f0",
+              borderRadius: 9,
+              background: "#fff",
+              borderTop: `3px solid ${item.color}`,
+            }}>
+              <span style={{
+                fontSize: 11,
+                color: "#64748b",
+                fontWeight: 700,
+              }}>
+                {item.title}
+              </span>
+
+              <h3 style={{
+                margin: "8px 0 0",
+                color: item.color,
+                fontSize: 19,
+                fontWeight: 800,
+              }}>
+                {item.value}
+              </h3>
+            </div>
+          ))}
+        </div>
+
+        {/* SALES TREND */}
+        <div style={{
+          padding: 15,
+          border: "1px solid #e2e8f0",
+          borderRadius: 9,
+          background: "#fff",
+          marginBottom: 20,
+        }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 18,
+          }}>
+            <div>
+              <h3 style={{
+                margin: 0,
+                fontSize: 15,
+                fontWeight: 800,
+                color: "#172554",
+              }}>
+                Sales Trend
+              </h3>
+              <p style={{
+                margin: "4px 0 0",
+                fontSize: 11,
+                color: "#64748b",
+              }}>
+                Daily sales performance
+              </p>
+            </div>
+
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+            }}>
+              <select
+                value={salesDashboardPeriod}
+                onChange={(e) => {
+                  setSalesDashboardPeriod(e.target.value);
+                  loadSalesDashboard(e.target.value);
+                }}
+                style={{
+                  padding: "7px 10px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  background: "#fff",
+                }}
+              >
+                <option value="7">Last 7 Days</option>
+                <option value="30">Last 30 Days</option>
+              </select>
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => loadSalesDashboard()}
+                disabled={salesDashboardLoading}
+              >
+                {salesDashboardLoading ? "Loading..." : "Refresh"}
+              </button>
+            </div>
+          </div>
+
+          {salesDashboard.salesTrend?.length > 0 ? (
+            <>
+              {(() => {
+                const maxSales = Math.max(
+                  1,
+                  ...salesDashboard.salesTrend.map(
+                    (item) => Number(item.netSales || 0)
+                  )
+                );
+
+                return (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "flex-end",
+                    gap: salesDashboardPeriod === "30" ? 3 : 12,
+                    height: 210,
+                    overflowX: "auto",
+                    padding: "10px 3px 0",
+                    borderBottom: "1px solid #e2e8f0",
+                  }}>
+                    {salesDashboard.salesTrend.map((item) => {
+                      const sales = Number(item.netSales || 0);
+                      const height = Math.max(
+                        sales > 0 ? 5 : 2,
+                        (sales / maxSales) * 155
+                      );
+
+                      return (
+                        <div
+                          key={item.date}
+                          title={`${item.date}\nNet Sales: ৳ ${sales.toLocaleString("en-BD")}\nReturns: ৳ ${Number(item.returns || 0).toLocaleString("en-BD")}\nInvoices: ${item.invoices}`}
+                          style={{
+                            flex: "1 0 22px",
+                            minWidth: salesDashboardPeriod === "30" ? 16 : 30,
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "flex-end",
+                            alignItems: "center",
+                            height: "100%",
+                          }}
+                        >
+                          <div style={{
+                            fontSize: 9,
+                            color: "#64748b",
+                            marginBottom: 4,
+                            whiteSpace: "nowrap",
+                          }}>
+                            {sales > 0
+                              ? sales >= 100000
+                                ? `${(sales / 100000).toFixed(1)}L`
+                                : sales >= 1000
+                                ? `${(sales / 1000).toFixed(1)}K`
+                                : sales.toFixed(0)
+                              : ""}
+                          </div>
+
+                          <div style={{
+                            width: "75%",
+                            height: `${height}px`,
+                            minHeight: 2,
+                            background: "#2563eb",
+                            borderRadius: "5px 5px 0 0",
+                          }} />
+
+                          <div style={{
+                            fontSize: 9,
+                            color: "#64748b",
+                            marginTop: 6,
+                            whiteSpace: "nowrap",
+                            transform: salesDashboardPeriod === "30"
+                              ? "rotate(-45deg)"
+                              : "none",
+                            transformOrigin: "top center",
+                          }}>
+                            {new Date(item.date + "T12:00:00").toLocaleDateString(
+                              "en-GB",
+                              { day: "2-digit", month: "short" }
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              <div style={{
+                display: "flex",
+                gap: 18,
+                flexWrap: "wrap",
+                marginTop: 18,
+                fontSize: 11,
+                color: "#64748b",
+              }}>
+                <span>
+                  <span style={{
+                    display: "inline-block",
+                    width: 9,
+                    height: 9,
+                    background: "#2563eb",
+                    borderRadius: 2,
+                    marginRight: 5,
+                  }} />
+                  Net Sales
+                </span>
+                <span>
+                  Hover over a bar to see sales, returns and invoices
+                </span>
+              </div>
+            </>
+          ) : (
+            <p style={{
+              textAlign: "center",
+              padding: 25,
+              color: "#64748b",
+              fontSize: 12,
+            }}>
+              No sales trend data available.
+            </p>
+          )}
+        </div>
+      </>
+    ) : (
       <div style={{
+        padding: 20,
+        textAlign: "center",
+        color: "#dc2626",
+        background: "#fff",
+        borderRadius: 9,
+      }}>
+        Dashboard data পাওয়া যায়নি। Refresh করুন।
+        <div style={{ marginTop: 10 }}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => loadSalesDashboard()}
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )}
+  </>
+)}
+
+
+      {/* SALES INVOICE HISTORY */}
+      {(activePage === "Sales Invoice History" || activePage === "Sales") && (
+        <>
+          {/* HISTORY HEADER */}
+          <div style={{
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -12715,12 +13158,14 @@ return (
         </tr>
       ))}
     </tbody>
-  </table>
+   </table>
 </div>
-</div>
-
+        </>
+      )}
+    </div>
 
     {/* NEW SALES INVOICE MODAL */}
+
     {showSalesForm && (
       <div style={{
         ...modalOverlayStyle,
@@ -17710,7 +18155,12 @@ async function handleAdminLogout() {
   {activePage === "Supplier Report" && renderAllSupplierReport()}
   {activePage === "All Customer Report" && renderAllCustomerReport()}
   {activePage === "Categories" && renderCategories()}
-  {activePage === "Sales" && renderSales()}
+{[
+  "Sales",
+  "Sales Dashboard",
+  "New Sales Invoice",
+  "Sales Invoice History",
+].includes(activePage) && renderSales()}
   {activePage === "Purchases" && renderPurchases()}
   {activePage === "Commission Management" && renderCommissionManagement()}
  {activePage === "Commission History" && renderCommissionHistory()}
@@ -17718,6 +18168,7 @@ async function handleAdminLogout() {
   {activePage === "Activity Log" && renderActivityLog()}
   {![
     "Dashboard",
+    "New Sales Invoice",
     "Products",
     "Suppliers",
      "Customers",

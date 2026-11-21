@@ -742,6 +742,729 @@ router.post("/", async (req, res) => {
 // GET ALL SALES INVOICES
 // GET /api/sales
 // ========================================
+// ========================================
+// SALES DASHBOARD SUMMARY
+// GET /api/sales/dashboard/summary
+// ========================================
+
+router.get("/dashboard/summary", async (req, res) => {
+  try {
+    const { period = "7" } = req.query;
+
+    const trendDays = Number(period) === 30 ? 30 : 7;
+
+    // ========================================
+    // BANGLADESH DATE RANGE
+    // ========================================
+
+    const today = new Date(
+      Date.now() + 6 * 60 * 60 * 1000
+    )
+      .toISOString()
+      .slice(0, 10);
+
+    const todayStart = new Date(
+      `${today}T00:00:00.000+06:00`
+    );
+
+    const tomorrowStart = new Date(
+      todayStart.getTime() + 24 * 60 * 60 * 1000
+    );
+
+    const trendStart = new Date(
+      todayStart.getTime() -
+        (trendDays - 1) * 24 * 60 * 60 * 1000
+    );
+
+    // ========================================
+    // ALL COMPLETED SALES SUMMARY
+    // ========================================
+
+    const salesSummaryResult = await Sale.aggregate([
+      {
+        $match: {
+          status: "COMPLETED",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalInvoices: { $sum: 1 },
+          totalSales: { $sum: "$grandTotal" },
+          totalBags: { $sum: "$totalBags" },
+          totalWeightKg: { $sum: "$totalWeightKg" },
+        },
+      },
+    ]);
+
+    const salesSummary = salesSummaryResult[0] || {};
+
+
+// ========================================
+// TODAY'S OWN SALE PROFIT
+// ========================================
+
+const todaySaleProfitResult = await Sale.aggregate([
+  {
+    $match: {
+      status: "COMPLETED",
+      invoiceDate: {
+        $gte: todayStart,
+        $lt: tomorrowStart,
+      },
+    },
+  },
+  {
+    $group: {
+      _id: null,
+      profit: { $sum: "$totalProfit" },
+    },
+  },
+]);
+
+const todaySaleProfit = todaySaleProfitResult[0] || {};
+
+
+
+    // ========================================
+    // TODAY'S SALES SUMMARY
+    // ========================================
+
+    const todaySalesResult = await Sale.aggregate([
+      {
+        $match: {
+          status: "COMPLETED",
+          invoiceDate: {
+            $gte: todayStart,
+            $lt: tomorrowStart,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          invoices: { $sum: 1 },
+          amount: { $sum: "$grandTotal" },
+          bags: { $sum: "$totalBags" },
+          weightKg: { $sum: "$totalWeightKg" },
+        },
+      },
+    ]);
+
+    const todaySales = todaySalesResult[0] || {};
+
+
+// ========================================
+// ALL TIME OWN SALE PROFIT
+// ========================================
+
+const totalSaleProfitResult = await Sale.aggregate([
+  {
+    $match: {
+      status: "COMPLETED",
+    },
+  },
+  {
+    $group: {
+      _id: null,
+      profit: { $sum: "$totalProfit" },
+    },
+  },
+]);
+
+const totalSaleProfit = totalSaleProfitResult[0] || {};
+
+    // ========================================
+    // ALL COMPLETED SALES RETURNS
+    // ========================================
+
+    const returnSummaryResult = await SalesReturn.aggregate([
+      {
+        $match: {
+          status: "COMPLETED",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalReturns: { $sum: 1 },
+          returnAmount: { $sum: "$returnAmount" },
+          returnedBags: { $sum: "$totalBags" },
+          returnedWeightKg: { $sum: "$totalWeightKg" },
+          amountAdjusted: { $sum: "$amountAdjusted" },
+          refundAmount: { $sum: "$refundAmount" },
+        },
+      },
+    ]);
+
+    const returnSummary = returnSummaryResult[0] || {};
+
+
+// ========================================
+// TODAY'S OWN RETURN PROFIT
+// ========================================
+
+const todayReturnProfitResult = await SalesReturn.aggregate([
+  {
+    $match: {
+      status: "COMPLETED",
+      returnDate: {
+        $gte: todayStart,
+        $lt: tomorrowStart,
+      },
+    },
+  },
+  {
+    $group: {
+      _id: null,
+      profit: { $sum: "$profit" },
+    },
+  },
+]);
+
+const todayReturnProfit = todayReturnProfitResult[0] || {};
+
+    // ========================================
+    // TODAY'S SALES RETURN
+    // ========================================
+
+    const todayReturnResult = await SalesReturn.aggregate([
+      {
+        $match: {
+          status: "COMPLETED",
+          returnDate: {
+            $gte: todayStart,
+            $lt: tomorrowStart,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          amount: { $sum: "$returnAmount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const todayReturn = todayReturnResult[0] || {};
+
+
+// ========================================
+// ALL TIME OWN RETURN PROFIT
+// ========================================
+
+const totalReturnProfitResult = await SalesReturn.aggregate([
+  {
+    $match: {
+      status: "COMPLETED",
+    },
+  },
+  {
+    $group: {
+      _id: null,
+      profit: { $sum: "$profit" },
+    },
+  },
+]);
+
+const totalReturnProfit = totalReturnProfitResult[0] || {};
+
+    // ========================================
+    // CUSTOMER PAYMENT SUMMARY
+    // Only actual PAYMENT ledger entries
+    // ========================================
+
+    const paymentSummaryResult = await CustomerLedger.aggregate([
+      {
+        $match: {
+          type: "PAYMENT",
+          isVoided: { $ne: true },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalPaid: { $sum: "$credit" },
+        },
+      },
+    ]);
+
+    const paymentSummary = paymentSummaryResult[0] || {};
+
+    // ========================================
+    // TODAY'S CUSTOMER PAYMENTS
+    // ========================================
+
+    const todayPaymentResult = await CustomerLedger.aggregate([
+      {
+        $match: {
+          type: "PAYMENT",
+          isVoided: { $ne: true },
+          transactionDate: {
+            $gte: todayStart,
+            $lt: tomorrowStart,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalPaid: { $sum: "$credit" },
+        },
+      },
+    ]);
+
+    const todayPayment = todayPaymentResult[0] || {};
+
+    // ========================================
+    // CURRENT CUSTOMER DUE
+    // Opening Balance + Ledger Debit - Credit
+    // ========================================
+
+    const openingBalanceResult = await Customer.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalOpeningBalance: {
+            $sum: "$openingBalance",
+          },
+        },
+      },
+    ]);
+
+    const ledgerBalanceResult = await CustomerLedger.aggregate([
+      {
+        $match: {
+          isVoided: { $ne: true },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalDebit: { $sum: "$debit" },
+          totalCredit: { $sum: "$credit" },
+        },
+      },
+    ]);
+
+    const totalOpeningBalance = Number(
+      openingBalanceResult[0]?.totalOpeningBalance || 0
+    );
+
+    const totalDebit = Number(
+      ledgerBalanceResult[0]?.totalDebit || 0
+    );
+
+    const totalCredit = Number(
+      ledgerBalanceResult[0]?.totalCredit || 0
+    );
+
+    const currentCustomerDue = Number(
+      (
+        totalOpeningBalance +
+        totalDebit -
+        totalCredit
+      ).toFixed(2)
+    );
+
+    // ========================================
+    // SALES TREND
+    // ========================================
+
+    const salesTrendResult = await Sale.aggregate([
+      {
+        $match: {
+          status: "COMPLETED",
+          invoiceDate: {
+            $gte: trendStart,
+            $lt: tomorrowStart,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$invoiceDate",
+              timezone: "Asia/Dhaka",
+            },
+          },
+          sales: { $sum: "$grandTotal" },
+          invoices: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    // ========================================
+    // RETURN TREND
+    // ========================================
+
+    const returnTrendResult = await SalesReturn.aggregate([
+      {
+        $match: {
+          status: "COMPLETED",
+          returnDate: {
+            $gte: trendStart,
+            $lt: tomorrowStart,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$returnDate",
+              timezone: "Asia/Dhaka",
+            },
+          },
+          returns: { $sum: "$returnAmount" },
+        },
+      },
+    ]);
+
+
+    // ========================================
+// OWN SALE PROFIT TREND
+// ========================================
+
+const saleProfitTrendResult = await Sale.aggregate([
+  {
+    $match: {
+      status: "COMPLETED",
+      invoiceDate: {
+        $gte: trendStart,
+        $lt: tomorrowStart,
+      },
+    },
+  },
+  {
+    $group: {
+      _id: {
+        $dateToString: {
+          format: "%Y-%m-%d",
+          date: "$invoiceDate",
+          timezone: "Asia/Dhaka",
+        },
+      },
+      profit: { $sum: "$totalProfit" },
+    },
+  },
+]);
+
+// ========================================
+// OWN RETURN PROFIT TREND
+// ========================================
+
+const returnProfitTrendResult = await SalesReturn.aggregate([
+  {
+    $match: {
+      status: "COMPLETED",
+      returnDate: {
+        $gte: trendStart,
+        $lt: tomorrowStart,
+      },
+    },
+  },
+  {
+    $group: {
+      _id: {
+        $dateToString: {
+          format: "%Y-%m-%d",
+          date: "$returnDate",
+          timezone: "Asia/Dhaka",
+        },
+      },
+      profit: { $sum: "$profit" },
+    },
+  },
+]);
+    // ========================================
+    // COMBINE DAILY SALES AND RETURNS
+    // ========================================
+
+    const trendMap = new Map();
+
+for (const item of salesTrendResult) {
+  trendMap.set(item._id, {
+    date: item._id,
+    sales: Number(item.sales || 0),
+    returns: 0,
+    netSales: Number(item.sales || 0),
+    invoices: Number(item.invoices || 0),
+
+    saleProfit: 0,
+    returnProfit: 0,
+    ownProfit: 0,
+  });
+}
+
+   for (const item of returnTrendResult) {
+  const existing = trendMap.get(item._id) || {
+    date: item._id,
+    sales: 0,
+    returns: 0,
+    netSales: 0,
+    invoices: 0,
+    saleProfit: 0,
+    returnProfit: 0,
+    ownProfit: 0,
+  };
+
+      existing.returns = Number(item.returns || 0);
+
+      existing.netSales = Number(
+        (existing.sales - existing.returns).toFixed(2)
+      );
+
+      trendMap.set(item._id, existing);
+    }
+// ADD SALE PROFIT TO TREND
+for (const item of saleProfitTrendResult) {
+  const existing = trendMap.get(item._id) || {
+    date: item._id,
+    sales: 0,
+    returns: 0,
+    netSales: 0,
+    invoices: 0,
+    saleProfit: 0,
+    returnProfit: 0,
+    ownProfit: 0,
+  };
+
+  existing.saleProfit = Number(item.profit || 0);
+
+  existing.ownProfit = Number(
+    (
+      existing.saleProfit -
+      existing.returnProfit
+    ).toFixed(2)
+  );
+
+  trendMap.set(item._id, existing);
+}
+
+// ADD RETURN PROFIT TO TREND
+for (const item of returnProfitTrendResult) {
+  const existing = trendMap.get(item._id) || {
+    date: item._id,
+    sales: 0,
+    returns: 0,
+    netSales: 0,
+    invoices: 0,
+    saleProfit: 0,
+    returnProfit: 0,
+    ownProfit: 0,
+  };
+
+  existing.returnProfit = Number(item.profit || 0);
+
+  existing.ownProfit = Number(
+    (
+      existing.saleProfit -
+      existing.returnProfit
+    ).toFixed(2)
+  );
+
+  trendMap.set(item._id, existing);
+}
+    // Fill missing dates with zero
+    const salesTrend = [];
+
+    for (let i = 0; i < trendDays; i++) {
+      const date = new Date(
+        trendStart.getTime() + i * 24 * 60 * 60 * 1000
+      )
+        .toISOString()
+        .slice(0, 10);
+
+      salesTrend.push(
+        trendMap.get(date) || {
+  date,
+  sales: 0,
+  returns: 0,
+  netSales: 0,
+  invoices: 0,
+  saleProfit: 0,
+  returnProfit: 0,
+  ownProfit: 0,
+}
+      );
+    }
+
+    // ========================================
+    // FINAL DASHBOARD RESPONSE
+    // ========================================
+
+const totalSales = Number(
+  Number(salesSummary.totalSales || 0).toFixed(2)
+);
+
+const totalReturnAmount = Number(
+  Number(returnSummary.returnAmount || 0).toFixed(2)
+);
+
+const totalOwnSaleProfit = Number(
+  Number(totalSaleProfit.profit || 0).toFixed(2)
+);
+
+const totalOwnReturnProfit = Number(
+  Number(totalReturnProfit.profit || 0).toFixed(2)
+);
+
+const todayOwnSaleProfit = Number(
+  Number(todaySaleProfit.profit || 0).toFixed(2)
+);
+
+const todayOwnReturnProfit = Number(
+  Number(todayReturnProfit.profit || 0).toFixed(2)
+);
+
+return res.json({
+  success: true,
+
+  data: {
+    today: {
+      invoices: Number(todaySales.invoices || 0),
+
+      sales: Number(todaySales.amount || 0),
+
+      returnAmount: Number(todayReturn.amount || 0),
+
+      netSales: Number(
+        (
+          Number(todaySales.amount || 0) -
+          Number(todayReturn.amount || 0)
+        ).toFixed(2)
+      ),
+
+      // OWN SALE PROFIT
+      saleProfit: todayOwnSaleProfit,
+
+      // OWN SALE RETURN PROFIT
+      returnProfit: todayOwnReturnProfit,
+
+      // NET OWN PROFIT
+      ownProfit: Number(
+        (todayOwnSaleProfit - todayOwnReturnProfit).toFixed(2)
+      ),
+
+      bags: Number(todaySales.bags || 0),
+
+      weightKg: Number(todaySales.weightKg || 0),
+
+      paid: Number(todayPayment.totalPaid || 0),
+    },
+
+    overall: {
+      totalInvoices: Number(
+        salesSummary.totalInvoices || 0
+      ),
+
+      totalSales,
+
+      totalReturnAmount,
+
+      netSales: Number(
+        (totalSales - totalReturnAmount).toFixed(2)
+      ),
+
+      // TOTAL OWN SALE PROFIT
+      totalOwnSaleProfit,
+
+      // TOTAL OWN SALE RETURN PROFIT
+      totalOwnReturnProfit,
+
+      // NET OWN PROFIT
+      ownProfit: Number(
+        (totalOwnSaleProfit - totalOwnReturnProfit).toFixed(2)
+      ),
+
+      totalBags: Number(
+        salesSummary.totalBags || 0
+      ),
+
+      returnedBags: Number(
+        returnSummary.returnedBags || 0
+      ),
+
+      netBags: Number(
+        (
+          Number(salesSummary.totalBags || 0) -
+          Number(returnSummary.returnedBags || 0)
+        ).toFixed(2)
+      ),
+
+      totalWeightKg: Number(
+        salesSummary.totalWeightKg || 0
+      ),
+
+      returnedWeightKg: Number(
+        returnSummary.returnedWeightKg || 0
+      ),
+
+      netWeightKg: Number(
+        (
+          Number(salesSummary.totalWeightKg || 0) -
+          Number(returnSummary.returnedWeightKg || 0)
+        ).toFixed(2)
+      ),
+
+      totalPaid: Number(
+        paymentSummary.totalPaid || 0
+      ),
+
+      currentDue: currentCustomerDue,
+    },
+
+    returns: {
+      totalReturns: Number(
+        returnSummary.totalReturns || 0
+      ),
+
+      returnAmount: totalReturnAmount,
+
+      // TOTAL OWN RETURN PROFIT
+      ownReturnProfit: totalOwnReturnProfit,
+
+      amountAdjusted: Number(
+        returnSummary.amountAdjusted || 0
+      ),
+
+      refundAmount: Number(
+        returnSummary.refundAmount || 0
+      ),
+
+      returnedBags: Number(
+        returnSummary.returnedBags || 0
+      ),
+
+      returnedWeightKg: Number(
+        returnSummary.returnedWeightKg || 0
+      ),
+    },
+
+    salesTrend,
+
+    trendDays,
+  },
+});
+
+  } catch (error) {
+    console.error("Sales Dashboard Summary Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load sales dashboard summary",
+    });
+  }
+});
+
 
 // ========================================
 // GET ALL SALES INVOICES WITH RETURN INFO
@@ -758,19 +1481,24 @@ router.get("/", async (req, res) => {
       filter.status = status;
     }
 
-    if (from || to) {
-      filter.invoiceDate = {};
+  
+if (from || to) {
+  filter.invoiceDate = {};
 
-      if (from) {
-        filter.invoiceDate.$gte = new Date(from);
-      }
+  // Bangladesh timezone: UTC+6
+  if (from) {
+    filter.invoiceDate.$gte = new Date(
+      `${from}T00:00:00.000+06:00`
+    );
+  }
 
-      if (to) {
-        const endDate = new Date(to);
-        endDate.setHours(23, 59, 59, 999);
-        filter.invoiceDate.$lte = endDate;
-      }
-    }
+  if (to) {
+    filter.invoiceDate.$lte = new Date(
+      `${to}T23:59:59.999+06:00`
+    );
+  }
+}
+
 
     if (search) {
       const regex = new RegExp(

@@ -62,14 +62,10 @@ async function recalculateCustomerLedgerBalances(customerId, session) {
 // GET SALE INVOICE FOR RETURN
 // GET /api/sales-returns/sales/:saleId
 // ========================================
-
 router.get("/sales/:saleId", async (req, res) => {
   try {
     const { saleId } = req.params;
 
-    // ========================================
-    // VALIDATE INVOICE ID
-    // ========================================
     if (!mongoose.isValidObjectId(saleId)) {
       return res.status(400).json({
         success: false,
@@ -77,9 +73,6 @@ router.get("/sales/:saleId", async (req, res) => {
       });
     }
 
-    // ========================================
-    // FIND SALES INVOICE
-    // ========================================
     const sale = await Sale.findById(saleId)
       .populate(
         "customerId",
@@ -102,9 +95,6 @@ router.get("/sales/:saleId", async (req, res) => {
       });
     }
 
-    // ========================================
-    // VALIDATE CUSTOMER
-    // ========================================
     const customer = sale.customerId;
 
     if (!customer) {
@@ -114,9 +104,6 @@ router.get("/sales/:saleId", async (req, res) => {
       });
     }
 
-    // ========================================
-    // GET CURRENT CUSTOMER LEDGER BALANCE
-    // ========================================
     const customerLedgerEntries = await CustomerLedger.find({
       customerId: customer._id,
       isVoided: { $ne: true },
@@ -139,9 +126,6 @@ router.get("/sales/:saleId", async (req, res) => {
       Number(currentCustomerBalance.toFixed(2))
     );
 
-    // ========================================
-    // GET PREVIOUS COMPLETED SALES RETURNS
-    // ========================================
     const previousReturns = await SalesReturn.find({
       saleId: sale._id,
       status: "COMPLETED",
@@ -165,9 +149,6 @@ router.get("/sales/:saleId", async (req, res) => {
       }
     }
 
-    // ========================================
-    // PREPARE SALES DATA
-    // ========================================
     const saleData = sale.toObject();
 
     saleData.currentCustomerDue = currentCustomerDue;
@@ -195,9 +176,7 @@ router.get("/sales/:saleId", async (req, res) => {
       return {
         ...item,
 
-        alreadyReturnedBags: Number(
-          returned.bags.toFixed(3)
-        ),
+        alreadyReturnedBags: Number(returned.bags.toFixed(3)),
 
         alreadyReturnedWeightKg: Number(
           returned.weightKg.toFixed(3)
@@ -205,16 +184,10 @@ router.get("/sales/:saleId", async (req, res) => {
 
         returnableBags: Math.max(0, remainingBags),
 
-        returnableWeightKg: Math.max(
-          0,
-          remainingWeightKg
-        ),
+        returnableWeightKg: Math.max(0, remainingWeightKg),
       };
     });
 
-    // ========================================
-    // SUCCESS RESPONSE
-    // ========================================
     return res.json({
       success: true,
       data: {
@@ -233,7 +206,6 @@ router.get("/sales/:saleId", async (req, res) => {
     });
   }
 });
-
 
 // ========================================
 // CREATE SALES RETURN
@@ -293,8 +265,6 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // One original invoice item can appear only once
-    // in a single return request.
     const itemIds = items.map((item) =>
       String(item.originalSaleItemId || "")
     );
@@ -312,43 +282,41 @@ router.post("/", async (req, res) => {
       // ========================================
       // 1. FIND ORIGINAL SALE
       // ========================================
-    const sale = await Sale.findById(saleId).session(session);
+      const sale = await Sale.findById(saleId).session(session);
 
-if (!sale) {
-  throw new Error("Sales invoice not found");
-}
+      if (!sale) {
+        throw new Error("Sales invoice not found");
+      }
 
-if (sale.status !== "COMPLETED") {
-  throw new Error("Only completed invoices can be returned");
-}
+      if (sale.status !== "COMPLETED") {
+        throw new Error("Only completed invoices can be returned");
+      }
 
-// ========================================
-// SALES RETURN TRANSACTION LOCK
-// Prevent concurrent returns on same invoice
-// ========================================
+      // ========================================
+      // SALES RETURN TRANSACTION LOCK
+      // ========================================
+      const lockedSale = await Sale.findOneAndUpdate(
+        {
+          _id: sale._id,
+          status: "COMPLETED",
+        },
+        {
+          $inc: {
+            returnVersion: 1,
+          },
+        },
+        {
+          new: true,
+          session,
+          runValidators: true,
+        }
+      );
 
-const lockedSale = await Sale.findOneAndUpdate(
-  {
-    _id: sale._id,
-    status: "COMPLETED",
-  },
-  {
-    $inc: {
-      returnVersion: 1,
-    },
-  },
-  {
-    new: true,
-    session,
-    runValidators: true,
-  }
-);
-
-if (!lockedSale) {
-  throw new Error(
-    "Invoice is no longer available for Sales Return. Please refresh and try again."
-  );
-}
+      if (!lockedSale) {
+        throw new Error(
+          "Invoice is no longer available for Sales Return. Please refresh and try again."
+        );
+      }
 
       const customer = await Customer.findById(
         sale.customerId
@@ -392,6 +360,8 @@ if (!lockedSale) {
       let totalBags = 0;
       let totalWeightKg = 0;
       let totalReturnAmount = 0;
+      let totalReturnCost = 0;
+      let totalReturnProfit = 0;
 
       for (const requestItem of items) {
         const originalItemId = requestItem.originalSaleItemId;
@@ -457,62 +427,62 @@ if (!lockedSale) {
         // ========================================
         // RETURN AMOUNT FROM ORIGINAL SALE RATES
         // ========================================
-   
-const saleRate = Number(
-  originalItem.saleRatePerKg || 0
-);
+        const saleRate = Number(
+          originalItem.saleRatePerKg || 0
+        );
 
-const labourRate = Number(
-  originalItem.labourRatePerBag || 0
-);
+        const labourRate = Number(
+          originalItem.labourRatePerBag || 0
+        );
 
-const originalWeight = Number(
-  originalItem.weightKg || 0
-);
+        const originalWeight = Number(
+          originalItem.weightKg || 0
+        );
 
-const originalBags = Number(
-  originalItem.bags || 0
-);
+        const originalBags = Number(
+          originalItem.bags || 0
+        );
 
-const commissionRate = Number(
-  originalItem.commissionRatePerKg || 0
-);
+        const commissionRate = Number(
+          originalItem.commissionRatePerKg || 0
+        );
 
-const productTotal =
-  originalWeight > 0
-    ? Number(
-        (
-          Number(originalItem.productTotal || 0) *
-          weightKg /
-          originalWeight
-        ).toFixed(2)
-      )
-    : 0;
+        const productTotal =
+          originalWeight > 0
+            ? Number(
+                (
+                  Number(originalItem.productTotal || 0) *
+                  weightKg /
+                  originalWeight
+                ).toFixed(2)
+              )
+            : 0;
 
-const labourTotal =
-  originalBags > 0
-    ? Number(
-        (
-          Number(originalItem.labourTotal || 0) *
-          bags /
-          originalBags
-        ).toFixed(2)
-      )
-    : 0;
+        const labourTotal =
+          originalBags > 0
+            ? Number(
+                (
+                  Number(originalItem.labourTotal || 0) *
+                  bags /
+                  originalBags
+                ).toFixed(2)
+              )
+            : 0;
 
-const commissionTotal =
-  originalWeight > 0
-    ? Number(
-        (
-          Number(originalItem.commissionTotal || 0) *
-          weightKg /
-          originalWeight
-        ).toFixed(2)
-      )
-    : 0;
+        const commissionTotal =
+          originalWeight > 0
+            ? Number(
+                (
+                  Number(originalItem.commissionTotal || 0) *
+                  weightKg /
+                  originalWeight
+                ).toFixed(2)
+              )
+            : 0;
 
-
-      
+        // ========================================
+        // RETURN AMOUNT
+        // ========================================
         const returnAmount = Number(
           (
             productTotal +
@@ -526,6 +496,26 @@ const commissionTotal =
             `Return amount must be greater than zero for ${originalItem.productName}`
           );
         }
+
+        // ========================================
+        // OWN SALE RETURN COST AND PROFIT
+        // COMMISSION PROFIT EXCLUDED
+        // ========================================
+        const costTotal =
+          originalItem.stockType === "OWN" && originalWeight > 0
+            ? Number(
+                (
+                  Number(originalItem.costTotal || 0) *
+                  weightKg /
+                  originalWeight
+                ).toFixed(2)
+              )
+            : 0;
+
+        const profit =
+          originalItem.stockType === "OWN"
+            ? Number((productTotal - costTotal).toFixed(2))
+            : 0;
 
         preparedItems.push({
           originalSaleItemId: originalItem._id,
@@ -548,16 +538,25 @@ const commissionTotal =
           productTotal,
           commissionTotal,
           labourTotal,
+
+          costTotal,
+          profit,
+
           returnAmount,
         });
 
         totalBags += bags;
         totalWeightKg += weightKg;
         totalReturnAmount += returnAmount;
+
+        totalReturnCost += costTotal;
+        totalReturnProfit += profit;
       }
 
       totalWeightKg = Number(totalWeightKg.toFixed(3));
       totalReturnAmount = Number(totalReturnAmount.toFixed(2));
+      totalReturnCost = Number(totalReturnCost.toFixed(2));
+      totalReturnProfit = Number(totalReturnProfit.toFixed(2));
 
       // ========================================
       // 4. CALCULATE CUSTOMER DUE BEFORE RETURN
@@ -668,6 +667,10 @@ const commissionTotal =
         totalBags,
         totalWeightKg,
 
+        // OWN RETURN COST AND PROFIT
+        costTotal: totalReturnCost,
+        profit: totalReturnProfit,
+
         returnAmount: totalReturnAmount,
 
         dueBeforeReturn,
@@ -764,6 +767,11 @@ const commissionTotal =
         totalWeightKg,
 
         returnAmount: totalReturnAmount,
+
+        // OWN PROFIT ADJUSTMENT
+        costTotal: totalReturnCost,
+        profit: totalReturnProfit,
+
         dueBeforeReturn,
         amountAdjusted,
         refundAmount,

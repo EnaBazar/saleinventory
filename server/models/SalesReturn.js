@@ -90,11 +90,22 @@ const salesReturnItemSchema = new mongoose.Schema(
       min: 0,
     },
 
+    costTotal: {
+  type: Number,
+  default: 0,
+  min: 0,
+},
+
+profit: {
+  type: Number,
+  default: 0,
+},
     returnAmount: {
       type: Number,
       required: true,
       min: 0,
     },
+
   },
   { _id: true }
 );
@@ -167,7 +178,17 @@ const salesReturnSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // OWN SALE RETURN COST AND PROFIT
+    costTotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
 
+    profit: {
+      type: Number,
+      default: 0,
+    },
     returnAmount: {
       type: Number,
       required: true,
