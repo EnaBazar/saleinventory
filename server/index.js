@@ -15,6 +15,9 @@ import activityRoutes from "./routes/activityRoutes.js";
 import salesRoutes from "./routes/salesRoutes.js";
 import salesReturnRoutes from "./routes/salesReturnRoutes.js";
 import commissionRoutes from "./routes/commissionRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+import stockOutRoutes from "./routes/stockOutRoutes.js";
+
 
 // Load packages only after DNS configuration
 const express = (await import("express")).default;
@@ -51,6 +54,9 @@ app.use("/api/activities", requireAdmin, activityRoutes);
 app.use("/api/sales", requireAdmin, salesRoutes);
 app.use("/api/sales-returns", requireAdmin, salesReturnRoutes);
 app.use("/api/commission", requireAdmin, commissionRoutes);
+app.use("/api/reports", requireAdmin, reportRoutes);
+app.use("/api/stock-outs", requireAdmin, stockOutRoutes);
+
 
 
 app.get("/", (req, res) => {

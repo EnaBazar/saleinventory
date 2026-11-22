@@ -517,33 +517,37 @@ router.post("/", async (req, res) => {
             ? Number((productTotal - costTotal).toFixed(2))
             : 0;
 
-        preparedItems.push({
-          originalSaleItemId: originalItem._id,
+  preparedItems.push({
+  originalSaleItemId: originalItem._id,
 
-          productId: originalItem.productId,
-          productName: originalItem.productName,
+  productId: originalItem.productId,
+  productName: originalItem.productName,
+  categoryName: originalItem.categoryName || "",
 
-          lotId: originalItem.lotId,
-          lotCode: originalItem.lotCode,
+  lotId: originalItem.lotId,
+  lotCode: originalItem.lotCode,
 
-          stockType: originalItem.stockType,
+  supplierId: originalItem.supplierId || null,
+  supplierName: originalItem.supplierName || "",
 
-          bags,
-          weightKg,
+  stockType: originalItem.stockType,
 
-          saleRatePerKg: saleRate,
-          commissionRatePerKg: commissionRate,
-          labourRatePerBag: labourRate,
+  bags,
+  weightKg,
 
-          productTotal,
-          commissionTotal,
-          labourTotal,
+  saleRatePerKg: saleRate,
+  commissionRatePerKg: commissionRate,
+  labourRatePerBag: labourRate,
 
-          costTotal,
-          profit,
+  productTotal,
+  commissionTotal,
+  labourTotal,
 
-          returnAmount,
-        });
+  costTotal,
+  profit,
+
+  returnAmount,
+});
 
         totalBags += bags;
         totalWeightKg += weightKg;

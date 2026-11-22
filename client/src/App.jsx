@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
  LayoutDashboard, Package, ShoppingCart, ShoppingBag, Users,
 Truck, Warehouse, Wallet, BarChart3, Settings, Bell, Search,
@@ -31,6 +31,7 @@ const navigation = [
       { label: "Products", icon: Package },
       { label: "Categories", icon: Tags },
      
+
 {
   label: "Sales",
   icon: ShoppingCart,
@@ -38,21 +39,59 @@ const navigation = [
     { label: "Sales Dashboard", icon: LayoutDashboard },
     { label: "New Sales Invoice", icon: Plus },
     { label: "Sales Invoice History", icon: ClipboardList },
-    { label: "Sales Return", icon: ArrowUpRight },
     { label: "Sales Collection", icon: Wallet },
-    { label: "Sales Reports", icon: BarChart3 },
+
+    { label: "Daily Sales Summary", icon: BarChart3 },
+    { label: "Weekly Sales Summary", icon: BarChart3 },
+    { label: "Monthly Sales Summary", icon: BarChart3 },
+    { label: "Yearly Sales Summary", icon: BarChart3 },
+
+    { label: "Lot Wise Sales", icon: Package },
+    { label: "Product Wise Sales", icon: Package },
+    { label: "Category Wise Sales", icon: Tags },
+    { label: "Supplier Wise Sales", icon: Truck },
+    { label: "OWN Profit / Loss", icon: Wallet },
   ],
 },
 
+
       { label: "Purchases", icon: ShoppingBag },
-      { label: "Customers", icon: Users },
+{
+  label: "Customers",
+  icon: Users,
+  children: [
+   { label: "Customer List", icon: Users },
+  { label: "Customer Due Summary", icon: FileText },
+  { label: "Customer Payment", icon: Wallet },
+  ],
+},
       { label: "Suppliers", icon: Truck },
     ],
   },
   {
     title: "MANAGEMENT",
     items: [
-      { label: "Inventory", icon: Warehouse },
+  
+      {
+  label: "Inventory",
+  icon: Warehouse,
+  children: [
+    { label: "Inventory Dashboard", icon: LayoutDashboard },
+    { label: "Stock In", icon: Plus },
+    { label: "Stock Out", icon: Package },
+    { label: "Stock Transfer", icon: Truck },
+    { label: "Stock Adjustment", icon: Settings },
+    { label: "Stock Return", icon: ClipboardList },
+
+    { label: "Stock Transaction History", icon: ClipboardList },
+
+    { label: "Current Stock Report", icon: BarChart3 },
+    { label: "Warehouse Wise Stock", icon: Warehouse },
+    { label: "Stock Movement Report", icon: BarChart3 },
+    { label: "Low Stock Report", icon: BarChart3 },
+    { label: "Stock Valuation", icon: Wallet },
+  ],
+},
       {
         label: "Commission",
         icon: FileText,
@@ -146,7 +185,8 @@ const fieldStyle = {
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
- useEffect(() => {
+ 
+  useEffect(() => {
   if (activePage === "New Sales Invoice") {
     openSalesForm();
   }
@@ -229,7 +269,19 @@ const [customerForm, setCustomerForm] = useState({
   notes: "",
 });
 
+// Customer Due Summary
+const [dueSummaryCustomers, setDueSummaryCustomers] = useState([]);
+const [dueSummaryLoading, setDueSummaryLoading] = useState(false);
 
+const [dueSummary, setDueSummary] = useState({
+  totalDueCustomers: 0,
+  totalDueAmount: 0,
+});
+
+const [dueStartDate, setDueStartDate] = useState("");
+const [dueEndDate, setDueEndDate] = useState("");
+const [dueCustomerSearch, setDueCustomerSearch] = useState("");
+const [dueCustomerAddress, setDueCustomerAddress] = useState("");
 
 
   const [categories, setCategories] = useState([]);
@@ -447,7 +499,25 @@ const [voidingPayment, setVoidingPayment] = useState(null);
 const [paymentVoidReason, setPaymentVoidReason] = useState("");
 const [paymentVoidLoading, setPaymentVoidLoading] = useState(false);
 
+// Customer Payment Correction States
+const [showCustomerPaymentEdit, setShowCustomerPaymentEdit] = useState(false);
+const [editingCustomerPayment, setEditingCustomerPayment] = useState(null);
+const [customerPaymentEditLoading, setCustomerPaymentEditLoading] = useState(false);
 
+const [customerPaymentEditForm, setCustomerPaymentEditForm] = useState({
+  amount: "",
+  paymentMethod: "CASH",
+  transactionId: "",
+  reference: "",
+  transactionDate: "",
+  description: "",
+  reason: "",
+});
+
+const [showCustomerPaymentVoid, setShowCustomerPaymentVoid] = useState(false);
+const [voidingCustomerPayment, setVoidingCustomerPayment] = useState(null);
+const [customerPaymentVoidReason, setCustomerPaymentVoidReason] = useState("");
+const [customerPaymentVoidLoading, setCustomerPaymentVoidLoading] = useState(false);
 // Purchase / Lot States
 // Purchase / Lot States
 const [lots, setLots] = useState([]);
@@ -531,6 +601,31 @@ const [salesEndDate, setSalesEndDate] = useState("");
 const [salesDashboard, setSalesDashboard] = useState(null);
 const [salesDashboardLoading, setSalesDashboardLoading] = useState(false);
 const [salesDashboardPeriod, setSalesDashboardPeriod] = useState("7");
+const [salesDashboardStartDate, setSalesDashboardStartDate] = useState(() =>
+  new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10)
+);
+// ========================================
+// OWN SALES REPORT STATES
+// ========================================
+
+const [ownSalesReport, setOwnSalesReport] = useState(null);
+const [ownSalesRegister, setOwnSalesRegister] = useState(null);
+const [expandedOwnInvoiceId, setExpandedOwnInvoiceId] = useState(null);
+const [expandedOwnSalesGroupKey, setExpandedOwnSalesGroupKey] = useState(null);
+const [expandedOwnSalesGroupInvoiceId, setExpandedOwnSalesGroupInvoiceId] = useState(null);
+const [ownSalesReportLoading, setOwnSalesReportLoading] = useState(false);
+
+const [ownSalesReportFrom, setOwnSalesReportFrom] = useState(() =>
+  new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10)
+);
+
+const [ownSalesReportTo, setOwnSalesReportTo] = useState(() =>
+  new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10)
+);
+
+const [salesDashboardEndDate, setSalesDashboardEndDate] = useState(() =>
+  new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10)
+);
 // Sales Invoice Form
 const [showSalesForm, setShowSalesForm] = useState(false);
 const [salesSaving, setSalesSaving] = useState(false);
@@ -542,6 +637,30 @@ const [salesCustomerLoading, setSalesCustomerLoading] = useState(false);
 const [selectedSalesCustomer, setSelectedSalesCustomer] = useState(null);
 const [showSalesCustomerOptions, setShowSalesCustomerOptions] = useState(false);
 
+
+
+// ========================================
+// SALES COLLECTION STATES
+// ========================================
+
+const [collectionCustomerSearch, setCollectionCustomerSearch] = useState("");
+const [collectionCustomerOptions, setCollectionCustomerOptions] = useState([]);
+const [collectionCustomerLoading, setCollectionCustomerLoading] = useState(false);
+const [selectedCollectionCustomer, setSelectedCollectionCustomer] = useState(null);
+const [showCollectionCustomerOptions, setShowCollectionCustomerOptions] = useState(false);
+
+const [collectionAmount, setCollectionAmount] = useState("");
+const [collectionPaymentMethod, setCollectionPaymentMethod] = useState("CASH");
+const [collectionTransactionId, setCollectionTransactionId] = useState("");
+const [collectionReference, setCollectionReference] = useState("");
+const [collectionDescription, setCollectionDescription] = useState("");
+const [collectionTransactionDate, setCollectionTransactionDate] = useState(
+  new Date().toISOString().slice(0, 10)
+);
+
+const [collectionLoading, setCollectionLoading] = useState(false);
+const [collectionHistory, setCollectionHistory] = useState([]);
+const [collectionHistoryLoading, setCollectionHistoryLoading] = useState(false);
 // Product Autocomplete
 const [salesProductSearch, setSalesProductSearch] = useState("");
 const [salesProductOptions, setSalesProductOptions] = useState([]);
@@ -686,12 +805,25 @@ async function loadSalesInvoices(overrides = {}) {
 // LOAD SALES DASHBOARD
 // ======================================
 
-async function loadSalesDashboard(period = salesDashboardPeriod) {
+async function loadSalesDashboard(
+  period = salesDashboardPeriod,
+  startDate = salesDashboardStartDate,
+  endDate = salesDashboardEndDate
+) {
   try {
+    if (!startDate || !endDate) {
+      toast.error("Start Date এবং End Date নির্বাচন করুন");
+      return;
+    }
+    if (startDate > endDate) {
+      toast.error("Start Date, End Date-এর পরে হতে পারবে না");
+      return;
+    }
+
     setSalesDashboardLoading(true);
 
     const result = await apiRequest(
-      `/sales/dashboard/summary?period=${period}`
+      `/sales/dashboard/summary?period=${period}&from=${encodeURIComponent(startDate)}&to=${encodeURIComponent(endDate)}`
     );
 
     setSalesDashboard(result.data || null);
@@ -699,6 +831,77 @@ async function loadSalesDashboard(period = salesDashboardPeriod) {
     toast.error(error.message || "Sales Dashboard load করা যায়নি");
   } finally {
     setSalesDashboardLoading(false);
+  }
+}
+
+// ========================================
+// LOAD OWN SALES REGISTER
+// ========================================
+
+async function loadOwnSalesRegister(
+  from = ownSalesReportFrom,
+  to = ownSalesReportTo
+) {
+  try {
+    if (!from || !to) {
+      toast.error("Start Date এবং End Date নির্বাচন করুন");
+      return;
+    }
+
+    if (from > to) {
+      toast.error("Start Date, End Date-এর পরে হতে পারবে না");
+      return;
+    }
+
+    setOwnSalesReportLoading(true);
+    setOwnSalesRegister(null);
+    setExpandedOwnInvoiceId(null);
+
+    const result = await apiRequest(
+      `/reports/own-sales-register?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    );
+
+    setOwnSalesRegister(result || null);
+  } catch (error) {
+    toast.error(error.message || "OWN Sales Register load করা যায়নি");
+  } finally {
+    setOwnSalesReportLoading(false);
+  }
+}
+
+// ========================================
+// LOAD OWN SALES REPORT
+// ========================================
+
+async function loadOwnSalesReport(
+  type = "daily",
+  from = ownSalesReportFrom,
+  to = ownSalesReportTo
+) {
+  try {
+    if (!from || !to) {
+      toast.error("Start Date এবং End Date নির্বাচন করুন");
+      return;
+    }
+
+    if (from > to) {
+      toast.error("Start Date, End Date-এর পরে হতে পারবে না");
+      return;
+    }
+
+    setOwnSalesReportLoading(true);
+
+    const result = await apiRequest(
+      `/reports/own-sales?type=${encodeURIComponent(type)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    );
+
+  setOwnSalesReport(result || null);
+  } catch (error) {
+    toast.error(
+      error.message || "OWN Sales Report load করা যায়নি"
+    );
+  } finally {
+    setOwnSalesReportLoading(false);
   }
 }
 
@@ -728,6 +931,115 @@ async function searchSalesCustomers(value) {
   }
 }
 
+
+// ========================================
+// SALES COLLECTION CUSTOMER SEARCH
+// ========================================
+
+async function searchCollectionCustomers(value) {
+  setCollectionCustomerSearch(value);
+  setSelectedCollectionCustomer(null);
+  setShowCollectionCustomerOptions(true);
+
+  if (!value.trim()) {
+    setCollectionCustomerOptions([]);
+    return;
+  }
+
+  try {
+    setCollectionCustomerLoading(true);
+
+    const result = await apiRequest(
+      `/sales/customers/search?q=${encodeURIComponent(value)}`
+    );
+
+    setCollectionCustomerOptions(result.data || []);
+  } catch (error) {
+    toast.error(error.message || "Customer search failed");
+  } finally {
+    setCollectionCustomerLoading(false);
+  }
+}
+
+// ========================================
+// LOAD SALES COLLECTION HISTORY
+// ========================================
+
+async function loadCollectionHistory() {
+  try {
+    setCollectionHistoryLoading(true);
+
+    const result = await apiRequest("/sales/collections");
+
+    setCollectionHistory(result.data || []);
+  } catch (error) {
+    toast.error(error.message || "Collection history load করা যায়নি");
+  } finally {
+    setCollectionHistoryLoading(false);
+  }
+}
+
+// ========================================
+// SUBMIT SALES COLLECTION
+// ========================================
+
+async function submitSalesCollection() {
+  if (!selectedCollectionCustomer?._id) {
+    toast.error("প্রথমে Customer নির্বাচন করুন");
+    return;
+  }
+
+  const amount = Number(collectionAmount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast.error("সঠিক Collection Amount লিখুন");
+    return;
+  }
+
+  const currentDue = Number(
+    selectedCollectionCustomer.currentBalance || 0
+  );
+
+  if (amount > currentDue + 0.009) {
+    toast.error(`Customer-এর বর্তমান বকেয়া ${currentDue.toFixed(2)} টাকা`);
+    return;
+  }
+
+  try {
+    setCollectionLoading(true);
+
+    const result = await apiRequest("/sales/collections", {
+  method: "POST",
+  body: JSON.stringify({
+    customerId: selectedCollectionCustomer._id,
+    amount,
+    paymentMethod: collectionPaymentMethod,
+    transactionId: collectionTransactionId,
+    reference: collectionReference,
+    description: collectionDescription,
+    transactionDate: collectionTransactionDate,
+  }),
+});
+
+    toast.success(result.message || "Collection successful");
+
+    setCollectionAmount("");
+    setCollectionTransactionId("");
+    setCollectionReference("");
+    setCollectionDescription("");
+
+    setSelectedCollectionCustomer(null);
+    setCollectionCustomerSearch("");
+    setCollectionCustomerOptions([]);
+    setShowCollectionCustomerOptions(false);
+
+    await loadCollectionHistory();
+  } catch (error) {
+    toast.error(error.message || "Collection failed");
+  } finally {
+    setCollectionLoading(false);
+  }
+}
 // Select Customer
 function selectSalesCustomer(customer) {
   setSelectedSalesCustomer(customer);
@@ -2028,6 +2340,51 @@ async function loadCustomers() {
     setCustomerLoading(false);
   }
 }
+
+// ========================================
+// LOAD CUSTOMER DUE SUMMARY
+// ========================================
+
+async function loadCustomerDueSummary(filters = {}) {
+  try {
+    setDueSummaryLoading(true);
+
+    const params = new URLSearchParams();
+
+    if (filters.startDate) {
+      params.append("startDate", filters.startDate);
+    }
+
+    if (filters.endDate) {
+      params.append("endDate", filters.endDate);
+    }
+
+    if (filters.search) {
+      params.append("search", filters.search);
+    }
+
+    if (filters.address) {
+      params.append("address", filters.address);
+    }
+
+    const query = params.toString();
+
+    const data = await apiRequest(
+      `/customers/due-summary${query ? `?${query}` : ""}`
+    );
+
+    setDueSummaryCustomers(data.customers || []);
+    setDueSummary(data.summary || {
+      totalDueCustomers: 0,
+      totalDueAmount: 0,
+    });
+  } catch (error) {
+    toast.error(error.message);
+  } finally {
+    setDueSummaryLoading(false);
+  }
+}
+
 // LOAD PENDING COMMISSION LOTS
 async function loadCommissionLots() {
   try {
@@ -2326,6 +2683,97 @@ useEffect(() => {
   }
 }, [activePage]);
 
+// Load OWN Sales Reports when report page opens
+
+
+useEffect(() => {
+  const reportPages = {
+    "Daily Sales Summary": "daily",
+    "Weekly Sales Summary": "weekly",
+    "Monthly Sales Summary": "monthly",
+    "Yearly Sales Summary": "yearly",
+    "Lot Wise Sales": "lot",
+    "Product Wise Sales": "product",
+    "Category Wise Sales": "category",
+    "Supplier Wise Sales": "supplier",
+    "OWN Profit / Loss": "profit-loss",
+  };
+
+  const reportType = reportPages[activePage];
+
+  if (!reportType) return;
+
+  if (reportType === "profit-loss") {
+    loadOwnSalesRegister();
+    return;
+  }
+
+  // Local date format: YYYY-MM-DD
+  const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const today = new Date();
+
+  let from = ownSalesReportFrom;
+  let to = ownSalesReportTo;
+
+  if (reportType === "daily") {
+    from = formatDate(today);
+    to = formatDate(today);
+  }
+
+  if (reportType === "weekly") {
+    // Saturday to Friday
+    const day = today.getDay();
+    const daysFromSaturday = (day + 1) % 7;
+
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - daysFromSaturday);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    from = formatDate(weekStart);
+    to = formatDate(weekEnd);
+  }
+
+  if (reportType === "monthly") {
+    const monthStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      1
+    );
+
+    const monthEnd = new Date(
+      today.getFullYear(),
+      today.getMonth() + 1,
+      0
+    );
+
+    from = formatDate(monthStart);
+    to = formatDate(monthEnd);
+  }
+
+  if (reportType === "yearly") {
+    from = `${today.getFullYear()}-01-01`;
+    to = `${today.getFullYear()}-12-31`;
+  }
+
+  // Update Date Input fields
+  setOwnSalesReportFrom(from);
+  setOwnSalesReportTo(to);
+
+  // Automatically load report
+  loadOwnSalesReport(reportType, from, to);
+
+}, [activePage]);
+
+
 const purchaseTotalAmount =
   purchaseForm.productId &&
   products.find(
@@ -2567,7 +3015,18 @@ const loadCategories = async () => {
 useEffect(() => {
   if (activePage === "Products") loadProducts();
   if (activePage === "Suppliers") loadSuppliers();
-  if (activePage === "Customers") loadCustomers();
+if (activePage === "Customer List") {
+  loadCustomers();
+}
+
+if (activePage === "Customer Due Summary") {
+  loadCustomerDueSummary({
+    startDate: dueStartDate,
+    endDate: dueEndDate,
+    search: dueCustomerSearch,
+    address: dueCustomerAddress,
+  });
+}
   if (activePage === "Categories") loadCategories();
 
   if (activePage === "Purchases") {
@@ -3114,6 +3573,82 @@ async function submitPaymentEdit(e) {
   }
 }
 
+async function submitCustomerPaymentEdit(e) {
+  e.preventDefault();
+
+  if (!editingCustomerPayment || !ledgerCustomer) {
+    toast.error("Customer Payment তথ্য পাওয়া যায়নি");
+    return;
+  }
+
+  const amount = Number(customerPaymentEditForm.amount);
+
+  if (!amount || amount <= 0) {
+    toast.error("সঠিক Payment Amount দিন");
+    return;
+  }
+
+  if (!customerPaymentEditForm.reason.trim()) {
+    toast.error("Correction Reason লিখুন");
+    return;
+  }
+
+  if (!customerPaymentEditForm.transactionDate) {
+    toast.error("Payment Date নির্বাচন করুন");
+    return;
+  }
+
+  try {
+    setCustomerPaymentEditLoading(true);
+
+    const result = await apiRequest(
+      `/customers/${ledgerCustomer._id}/payments/${editingCustomerPayment._id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount,
+          paymentMethod: customerPaymentEditForm.paymentMethod,
+          transactionId: customerPaymentEditForm.transactionId,
+          reference: customerPaymentEditForm.reference,
+          transactionDate: customerPaymentEditForm.transactionDate,
+          description: customerPaymentEditForm.description,
+          reason: customerPaymentEditForm.reason,
+        }),
+      }
+    );
+
+    toast.success(
+      result.message || "Customer Payment Correction সফল হয়েছে"
+    );
+
+    setShowCustomerPaymentEdit(false);
+    setEditingCustomerPayment(null);
+
+    await loadCustomerLedger(
+      ledgerCustomer,
+      1,
+      customerLedgerFilters
+    );
+
+    await loadCustomerDueSummary({
+      startDate: dueStartDate,
+      endDate: dueEndDate,
+      search: dueCustomerSearch,
+      address: dueCustomerAddress,
+    });
+
+  } catch (error) {
+    toast.error(
+      error.message || "Customer Payment Correction করা যায়নি"
+    );
+  } finally {
+    setCustomerPaymentEditLoading(false);
+  }
+}
+
 // ======================================
 // OPEN PAYMENT VOID
 // ======================================
@@ -3177,7 +3712,64 @@ async function submitPaymentVoid(e) {
   }
 }
 
+async function submitCustomerPaymentVoid(e) {
+  e.preventDefault();
 
+  if (!voidingCustomerPayment || !ledgerCustomer) {
+    toast.error("Customer Payment তথ্য পাওয়া যায়নি");
+    return;
+  }
+
+  if (!customerPaymentVoidReason.trim()) {
+    toast.error("Void করার কারণ লিখুন");
+    return;
+  }
+
+  try {
+    setCustomerPaymentVoidLoading(true);
+
+    const result = await apiRequest(
+      `/customers/${ledgerCustomer._id}/payments/${voidingCustomerPayment._id}/void`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: customerPaymentVoidReason,
+        }),
+      }
+    );
+
+    toast.success(
+      result.message || "Customer Payment সফলভাবে Void হয়েছে"
+    );
+
+    setShowCustomerPaymentVoid(false);
+    setVoidingCustomerPayment(null);
+    setCustomerPaymentVoidReason("");
+
+    await loadCustomerLedger(
+      ledgerCustomer,
+      1,
+      customerLedgerFilters
+    );
+
+    await loadCustomerDueSummary({
+      startDate: dueStartDate,
+      endDate: dueEndDate,
+      search: dueCustomerSearch,
+      address: dueCustomerAddress,
+    });
+
+  } catch (error) {
+    toast.error(
+      error.message || "Customer Payment Void করা যায়নি"
+    );
+  } finally {
+    setCustomerPaymentVoidLoading(false);
+  }
+}
 
 // ======================================
 // LOAD SUPPLIER LEDGER
@@ -4001,9 +4593,6 @@ function renderSupplierPaymentModal() {
 }
 
 
-
-
-
 function renderCustomerPaymentModal() {
   const paymentInputStyle = {
     ...inputStyle,
@@ -4681,6 +5270,7 @@ function renderSupplierLedgerModal() {
 
                   <tbody>
                     {transactions.map((item) => {
+                      console.log("CUSTOMER LEDGER TRANSACTIONS:", transactions);
                       const isVoided =
                         item.type === "PAYMENT" &&
                         item.isVoided === true;
@@ -4909,6 +5499,7 @@ function renderSupplierLedgerModal() {
 
 
 
+
 function renderCustomerLedgerModal() {
   const transactions = customerLedgerData?.transactions || [];
   const pagination = customerLedgerData?.pagination || {};
@@ -4940,85 +5531,324 @@ function renderCustomerLedgerModal() {
     customerSummary.currentBalance ??
     0;
 
+  const cardStyle = {
+    padding: 18,
+    borderRadius: 12,
+    border: "1px solid #e2e8f0",
+    background: "#ffffff",
+    boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
+    minWidth: 0,
+  };
+
+  const filterInputStyle = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "10px 12px",
+    border: "1px solid #dbe2ea",
+    borderRadius: 8,
+    outline: "none",
+    background: "#fff",
+    color: "#334155",
+    fontSize: 13,
+    marginTop: 6,
+  };
+
+  const filterLabelStyle = {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#475569",
+  };
+
+  const typeBadge = (type, isVoided) => {
+    if (isVoided) {
+      return {
+        background: "#fee2e2",
+        color: "#b91c1c",
+        label: "VOIDED",
+      };
+    }
+
+    const styles = {
+      SALE: {
+        background: "#dbeafe",
+        color: "#1d4ed8",
+        label: "SALE",
+      },
+      SALE_RETURN: {
+        background: "#fef3c7",
+        color: "#92400e",
+        label: "SALE RETURN",
+      },
+      PAYMENT: {
+        background: "#dcfce7",
+        color: "#15803d",
+        label: "PAYMENT",
+      },
+      ADJUSTMENT: {
+        background: "#f3e8ff",
+        color: "#7e22ce",
+        label: "ADJUSTMENT",
+      },
+    };
+
+    return (
+      styles[type] || {
+        background: "#f1f5f9",
+        color: "#475569",
+        label: type || "OTHER",
+      }
+    );
+  };
+
+  const actionButton = {
+    border: "1px solid #dbe2ea",
+    borderRadius: 7,
+    padding: "6px 10px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+
   return (
     <div
       className="customer-ledger-print-overlay"
-      style={modalOverlayStyle}
+      style={{
+        ...modalOverlayStyle,
+        padding: 12,
+        background: "rgba(15,23,42,0.65)",
+        backdropFilter: "blur(4px)",
+        overflowY: "auto",
+      }}
     >
       <div
         className="customer-ledger-print-area"
-        style={{ ...modalStyle, maxWidth: 1200, width: "96%" }}
+        style={{
+          ...modalStyle,
+          width: "98%",
+          maxWidth: 1450,
+          maxHeight: "96vh",
+          overflowY: "auto",
+          borderRadius: 16,
+          padding: 0,
+          background: "#f8fafc",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+        }}
       >
         {/* HEADER */}
-        <div className="customer-statement-header">
-          <div>
-            <h2>Customer Ledger</h2>
+        <div
+          className="customer-statement-header"
+          style={{
+            padding: "22px 25px",
+            background: "#ffffff",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 15,
+          }}
+        >
+          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                minWidth: 48,
+                borderRadius: 12,
+                background: "#fff7ed",
+                color: "#ea580c",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <FileText size={25} />
+            </div>
 
-            <p>
-              {ledgerCustomer?.customerName || "Customer"}
-            </p>
-
-            <p style={{ margin: "5px 0 0", fontSize: 13 }}>
-              <MapPin
-                size={14}
+            <div>
+              <h2
                 style={{
-                  verticalAlign: "middle",
-                  marginRight: 5,
+                  margin: 0,
+                  color: "#0f172a",
+                  fontSize: 21,
+                  fontWeight: 800,
                 }}
-              />
-              {ledgerCustomer?.address || "Address not provided"}
-              {ledgerCustomer?.mobile
-                ? ` | ${ledgerCustomer.mobile}`
-                : ""}
-            </p>
+              >
+                Customer Ledger
+              </h2>
+
+              <h3
+                style={{
+                  margin: "5px 0 0",
+                  color: "#334155",
+                  fontSize: 16,
+                }}
+              >
+                {ledgerCustomer?.customerName || "Customer"}
+              </h3>
+
+              <p
+                style={{
+                  margin: "5px 0 0",
+                  color: "#64748b",
+                  fontSize: 12,
+                }}
+              >
+                <MapPin
+                  size={13}
+                  style={{ verticalAlign: "middle", marginRight: 4 }}
+                />
+                {ledgerCustomer?.address || "Address not provided"}
+                {ledgerCustomer?.mobile
+                  ? `  |  ${ledgerCustomer.mobile}`
+                  : ""}
+              </p>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={() => setShowCustomerLedger(false)}
+            style={{
+              width: 38,
+              height: 38,
+              border: "1px solid #e2e8f0",
+              background: "#f8fafc",
+              color: "#475569",
+              borderRadius: 9,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title="Close Ledger"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="customer-statement-body">
+        <div
+          className="customer-statement-body"
+          style={{ padding: 22 }}
+        >
+          {/* SUMMARY CARDS */}
+          {customerLedgerData && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                gap: 14,
+                marginBottom: 20,
+              }}
+            >
+              <div style={cardStyle}>
+                <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700 }}>
+                  OPENING BALANCE
+                </div>
+                <h2 style={{ color: "#334155", fontSize: 21, margin: "12px 0 0" }}>
+                  ৳ {money(openingBalance)}
+                </h2>
+              </div>
 
-          {/* FILTER SECTION */}
-          <div className="customer-ledger-filter-panel customer-statement-filter">
+              <div style={cardStyle}>
+                <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700 }}>
+                  TOTAL DEBIT
+                </div>
+                <h2 style={{ color: "#dc2626", fontSize: 21, margin: "12px 0 0" }}>
+                  ৳ {money(customerSummary.totalDebit)}
+                </h2>
+              </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 17 }}>
-                Find Transactions
-              </h3>
-              <small>
-                Search and filter customer transactions
-              </small>
+              <div style={cardStyle}>
+                <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700 }}>
+                  TOTAL CREDIT
+                </div>
+                <h2 style={{ color: "#16a34a", fontSize: 21, margin: "12px 0 0" }}>
+                  ৳ {money(customerSummary.totalCredit)}
+                </h2>
+              </div>
+
+              <div
+                style={{
+                  ...cardStyle,
+                  background: "#fff7ed",
+                  borderColor: "#fed7aa",
+                }}
+              >
+                <div style={{ color: "#9a3412", fontSize: 12, fontWeight: 700 }}>
+                  CURRENT BALANCE
+                </div>
+                <h2 style={{ color: "#c2410c", fontSize: 21, margin: "12px 0 0" }}>
+                  ৳ {money(closingBalance)}
+                </h2>
+              </div>
+            </div>
+          )}
+
+          {/* FILTER PANEL */}
+          <div
+            className="customer-ledger-filter-panel customer-statement-filter"
+            style={{
+              background: "#ffffff",
+              padding: 20,
+              borderRadius: 12,
+              border: "1px solid #e2e8f0",
+              marginBottom: 20,
+              boxShadow: "0 2px 8px rgba(15,23,42,0.03)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, color: "#0f172a" }}>
+                  <Search
+                    size={17}
+                    style={{ verticalAlign: "middle", marginRight: 7 }}
+                  />
+                  Find Transactions
+                </h3>
+                <small style={{ color: "#64748b" }}>
+                  Filter customer transaction history
+                </small>
+              </div>
             </div>
 
-            {/* SEARCH */}
-            <div style={{ marginBottom: 15 }}>
-              <label>Search Transactions</label>
-
-              <input
-                type="text"
-                placeholder="Search Transaction ID or Reference..."
-                value={customerLedgerFilters.search}
-                onChange={(e) =>
-                  setCustomerLedgerFilters((prev) => ({
-                    ...prev,
-                    search: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            {/* FILTER FIELDS */}
-            <div className="customer-ledger-filter-grid">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 14,
+              }}
+            >
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={filterLabelStyle}>Search Transactions</label>
+                <input
+                  type="text"
+                  style={filterInputStyle}
+                  placeholder="Search Transaction ID or Reference..."
+                  value={customerLedgerFilters.search}
+                  onChange={(e) =>
+                    setCustomerLedgerFilters((prev) => ({
+                      ...prev,
+                      search: e.target.value,
+                    }))
+                  }
+                />
+              </div>
 
               <div>
-                <label>Start Date</label>
+                <label style={filterLabelStyle}>Start Date</label>
                 <input
                   type="date"
+                  style={filterInputStyle}
                   value={customerLedgerFilters.startDate}
                   onChange={(e) =>
                     setCustomerLedgerFilters((prev) => ({
@@ -5030,9 +5860,10 @@ function renderCustomerLedgerModal() {
               </div>
 
               <div>
-                <label>End Date</label>
+                <label style={filterLabelStyle}>End Date</label>
                 <input
                   type="date"
+                  style={filterInputStyle}
                   value={customerLedgerFilters.endDate}
                   onChange={(e) =>
                     setCustomerLedgerFilters((prev) => ({
@@ -5044,8 +5875,9 @@ function renderCustomerLedgerModal() {
               </div>
 
               <div>
-                <label>Transaction Type</label>
+                <label style={filterLabelStyle}>Transaction Type</label>
                 <select
+                  style={filterInputStyle}
                   value={customerLedgerFilters.type}
                   onChange={(e) =>
                     setCustomerLedgerFilters((prev) => ({
@@ -5063,8 +5895,9 @@ function renderCustomerLedgerModal() {
               </div>
 
               <div>
-                <label>Payment Method</label>
+                <label style={filterLabelStyle}>Payment Method</label>
                 <select
+                  style={filterInputStyle}
                   value={customerLedgerFilters.paymentMethod}
                   onChange={(e) =>
                     setCustomerLedgerFilters((prev) => ({
@@ -5084,10 +5917,11 @@ function renderCustomerLedgerModal() {
               </div>
 
               <div>
-                <label>Minimum Amount (৳)</label>
+                <label style={filterLabelStyle}>Minimum Amount (৳)</label>
                 <input
                   type="number"
                   min="0"
+                  style={filterInputStyle}
                   placeholder="Minimum amount"
                   value={customerLedgerFilters.minAmount}
                   onChange={(e) =>
@@ -5100,10 +5934,11 @@ function renderCustomerLedgerModal() {
               </div>
 
               <div>
-                <label>Maximum Amount (৳)</label>
+                <label style={filterLabelStyle}>Maximum Amount (৳)</label>
                 <input
                   type="number"
                   min="0"
+                  style={filterInputStyle}
                   placeholder="Maximum amount"
                   value={customerLedgerFilters.maxAmount}
                   onChange={(e) =>
@@ -5114,22 +5949,26 @@ function renderCustomerLedgerModal() {
                   }
                 />
               </div>
-
             </div>
 
-            {/* FILTER BUTTONS */}
-            <div className="customer-ledger-filter-actions">
-
+    <div
+  style={{
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    marginTop: 20,
+    paddingTop: 18,
+    borderTop: "1px solid #f1f5f9",
+  }}
+>
               <button
                 type="button"
                 className="secondary-button"
                 onClick={() => {
                   setCustomerLedgerFilters(emptyFilters);
-                  loadCustomerLedger(
-                    ledgerCustomer,
-                    1,
-                    emptyFilters
-                  );
+                  loadCustomerLedger(ledgerCustomer, 1, emptyFilters);
                 }}
                 disabled={customerLedgerLoading}
               >
@@ -5148,9 +5987,8 @@ function renderCustomerLedgerModal() {
                 }
                 disabled={customerLedgerLoading}
               >
-                {customerLedgerLoading
-                  ? "Searching..."
-                  : "Apply Filter"}
+                <Search size={15} style={{ verticalAlign: "middle", marginRight: 5 }} />
+                {customerLedgerLoading ? "Searching..." : "Apply Filter"}
               </button>
 
               <button
@@ -5163,160 +6001,276 @@ function renderCustomerLedgerModal() {
                   transactions.length === 0
                 }
               >
-                <Printer
-                  size={16}
-                  style={{
-                    verticalAlign: "middle",
-                    marginRight: 6,
-                  }}
-                />
+                <Printer size={15} style={{ verticalAlign: "middle", marginRight: 5 }} />
                 Print Report
               </button>
-
             </div>
           </div>
 
-          {/* LOADING */}
+          {/* TRANSACTION TABLE */}
           {customerLedgerLoading ? (
-            <p>Loading customer ledger...</p>
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 12,
+                padding: 35,
+                textAlign: "center",
+                color: "#64748b",
+              }}
+            >
+              Loading customer ledger...
+            </div>
           ) : customerLedgerData ? (
             <>
+              <div
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "16px 18px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    borderBottom: "1px solid #e2e8f0",
+                  }}
+                >
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, color: "#0f172a" }}>
+                      Transaction History
+                    </h3>
+                    <small style={{ color: "#64748b" }}>
+                      Customer account activity and balance
+                    </small>
+                  </div>
 
-              {/* SUMMARY CARDS */}
-              <div className="customer-statement-summary">
-
-                <div className="customer-statement-card">
-                  <small>Opening Balance</small>
-                  <h3>৳ {money(openingBalance)}</h3>
+                  <span
+                    style={{
+                      background: "#f1f5f9",
+                      color: "#475569",
+                      padding: "6px 10px",
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {Number(pagination.totalTransactions || 0).toLocaleString()} Transactions
+                  </span>
                 </div>
 
-                <div className="customer-statement-card">
-                  <small>Total Debit</small>
-                  <h3>৳ {money(customerSummary.totalDebit)}</h3>
-                </div>
+                <div
+                  className="table-wrapper"
+                  style={{
+                    overflowX: "auto",
+                    width: "100%",
+                  }}
+                >
+                  <table
+                    className="customer-statement-table"
+                    style={{
+                      width: "100%",
+                      minWidth: 1050,
+                      borderCollapse: "collapse",
+                      fontSize: 13,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ background: "#f1f5f9" }}>
+                        {[
+                          "DATE",
+                          "TYPE",
+                          "DESCRIPTION",
+                          "METHOD",
+                          "DEBIT",
+                          "CREDIT",
+                          "BALANCE",
+                          "ACTION",
+                        ].map((heading) => (
+                          <th
+                            key={heading}
+                            style={{
+                              padding: "13px 12px",
+                              textAlign: "left",
+                              color: "#475569",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              whiteSpace: "nowrap",
+                              borderBottom: "1px solid #e2e8f0",
+                            }}
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
 
-                <div className="customer-statement-card">
-                  <small>Total Credit</small>
-                  <h3>৳ {money(customerSummary.totalCredit)}</h3>
-                </div>
+                    <tbody>
+                      {transactions.map((item) => {
+                        const isVoided =
+                          item.type === "PAYMENT" &&
+                          item.isVoided === true;
 
-                <div className="customer-statement-card">
-                  <small>Current Balance</small>
-                  <h3>৳ {money(closingBalance)}</h3>
-                </div>
+                        const badge = typeBadge(item.type, isVoided);
 
-              </div>
+                        return (
+                          <tr
+                            key={item._id}
+                            style={{
+                              borderBottom: "1px solid #f1f5f9",
+                              background: isVoided ? "#fffafa" : "#ffffff",
+                            }}
+                          >
+                            <td style={{ padding: "13px 12px", whiteSpace: "nowrap", color: "#475569" }}>
+                              {item.transactionDate
+                                ? new Date(item.transactionDate).toLocaleDateString("en-GB")
+                                : "-"}
+                            </td>
 
-              {/* TRANSACTION TABLE */}
-              <div className="table-wrapper">
-                <table className="customer-statement-table">
-                  <thead>
-                    <tr>
-                      <th>DATE</th>
-                      <th>TYPE</th>
-                      <th>DESCRIPTION</th>
-                      <th>METHOD</th>
-                      <th>DEBIT</th>
-                      <th>CREDIT</th>
-                      <th>BALANCE</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {transactions.map((item) => {
-                      const isVoided =
-                        item.type === "PAYMENT" &&
-                        item.isVoided === true;
-
-                      return (
-                        <tr key={item._id}>
-                          <td>
-                            {item.transactionDate
-                              ? new Date(
-                                  item.transactionDate
-                                ).toLocaleDateString("en-GB")
-                              : "-"}
-                          </td>
-
-                          <td>
-                            <div>{item.type || "-"}</div>
-
-                            {isVoided && (
+                            <td style={{ padding: "13px 12px" }}>
                               <span
                                 style={{
                                   display: "inline-block",
-                                  marginTop: 5,
-                                  padding: "3px 8px",
-                                  borderRadius: 4,
-                                  background: "#fee2e2",
-                                  color: "#b91c1c",
-                                  fontSize: 11,
-                                  fontWeight: 700,
+                                  padding: "5px 9px",
+                                  borderRadius: 20,
+                                  background: badge.background,
+                                  color: badge.color,
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  whiteSpace: "nowrap",
                                 }}
                               >
-                                VOIDED
+                                {badge.label}
                               </span>
-                            )}
-                          </td>
+                            </td>
 
-                          <td>
-                            {item.description || item.reference || "-"}
-
-                            {item.transactionId && (
-                              <small style={{ display: "block" }}>
-                                ID: {item.transactionId}
-                              </small>
-                            )}
-
-                            {isVoided && (
-                              <div
-                                style={{
-                                  marginTop: 5,
-                                  color: "#b91c1c",
-                                  fontSize: 12,
-                                }}
-                              >
-                                Original Amount: ৳ {money(item.amount)}
-                                <br />
-                                Void Reason: {item.voidReason || "Not provided"}
+                            <td style={{ padding: "13px 12px", minWidth: 190, color: "#334155" }}>
+                              <div style={{ fontWeight: 600 }}>
+                                {item.description || item.reference || "-"}
                               </div>
-                            )}
-                          </td>
 
-                          <td>{item.paymentMethod || "-"}</td>
+                              {item.transactionId && (
+                                <small style={{ display: "block", marginTop: 4, color: "#94a3b8" }}>
+                                  ID: {item.transactionId}
+                                </small>
+                              )}
 
-                          <td>
-                            ৳ {money(isVoided ? 0 : item.debit)}
-                          </td>
+                              {isVoided && (
+                                <div
+                                  style={{
+                                    marginTop: 7,
+                                    padding: 8,
+                                    background: "#fff1f2",
+                                    borderRadius: 6,
+                                    color: "#be123c",
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  Original Amount: ৳ {money(item.amount)}
+                                  <br />
+                                  Reason: {item.voidReason || "Not provided"}
+                                </div>
+                              )}
+                            </td>
 
-                          <td>
-                            ৳ {money(isVoided ? 0 : item.credit)}
-                          </td>
+                            <td style={{ padding: "13px 12px", color: "#64748b", whiteSpace: "nowrap" }}>
+                              {item.paymentMethod || "-"}
+                            </td>
 
-                          <td>
-                            <strong>
+                            <td style={{ padding: "13px 12px", color: "#dc2626", fontWeight: 600, whiteSpace: "nowrap" }}>
+                              ৳ {money(isVoided ? 0 : item.debit)}
+                            </td>
+
+                            <td style={{ padding: "13px 12px", color: "#16a34a", fontWeight: 600, whiteSpace: "nowrap" }}>
+                              ৳ {money(isVoided ? 0 : item.credit)}
+                            </td>
+
+                            <td style={{ padding: "13px 12px", fontWeight: 800, color: "#0f172a", whiteSpace: "nowrap" }}>
                               ৳ {money(item.balanceAfter)}
-                            </strong>
+                            </td>
+
+                            <td style={{ padding: "13px 12px", whiteSpace: "nowrap" }}>
+                              {item.type === "PAYMENT" && !isVoided ? (
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      ...actionButton,
+                                      background: "#eff6ff",
+                                      color: "#1d4ed8",
+                                      borderColor: "#bfdbfe",
+                                    }}
+                                    onClick={() => {
+                                      setEditingCustomerPayment(item);
+
+                                      setCustomerPaymentEditForm({
+                                        amount: item.amount || item.credit || "",
+                                        paymentMethod: item.paymentMethod || "CASH",
+                                        transactionId: item.transactionId || "",
+                                        reference: item.reference || "",
+                                        transactionDate: item.transactionDate
+                                          ? new Date(item.transactionDate).toISOString().slice(0, 10)
+                                          : "",
+                                        description: item.description || "",
+                                        reason: "",
+                                      });
+
+                                      setShowCustomerPaymentEdit(true);
+                                    }}
+                                  >
+                                    <Edit size={12} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                                    Edit
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    style={{
+                                      ...actionButton,
+                                      background: "#fff1f2",
+                                      color: "#be123c",
+                                      borderColor: "#fecdd3",
+                                    }}
+                                    onClick={() => {
+                                      setVoidingCustomerPayment(item);
+                                      setCustomerPaymentVoidReason("");
+                                      setShowCustomerPaymentVoid(true);
+                                    }}
+                                  >
+                                    <Trash2 size={12} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                                    Void
+                                  </button>
+                                </div>
+                              ) : (
+                                <span style={{ color: "#cbd5e1" }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {transactions.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan="8"
+                            style={{
+                              textAlign: "center",
+                              padding: 40,
+                              color: "#94a3b8",
+                            }}
+                          >
+                            <FileText size={30} style={{ marginBottom: 8, opacity: 0.5 }} />
+                            <div>No transactions found</div>
                           </td>
                         </tr>
-                      );
-                    })}
-
-                    {transactions.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan="7"
-                          style={{
-                            textAlign: "center",
-                            padding: 25,
-                          }}
-                        >
-                          No transactions found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* PAGINATION */}
@@ -5328,22 +6282,21 @@ function renderCustomerLedgerModal() {
                   alignItems: "center",
                   gap: 12,
                   flexWrap: "wrap",
-                  marginTop: 18,
-                  padding: 12,
-                  borderTop: "1px solid #ddd",
+                  marginTop: 16,
+                  padding: "15px 18px",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
                 }}
               >
                 <div>
-                  <strong>
-                    Page {pagination.page || 1} of{" "}
-                    {pagination.totalPages || 1}
+                  <strong style={{ color: "#334155", fontSize: 13 }}>
+                    Page {pagination.page || 1} of {pagination.totalPages || 1}
                   </strong>
 
-                  <small style={{ display: "block", marginTop: 4 }}>
+                  <small style={{ display: "block", marginTop: 4, color: "#64748b" }}>
                     Total Transactions:{" "}
-                    {Number(
-                      pagination.totalTransactions || 0
-                    ).toLocaleString()}
+                    {Number(pagination.totalTransactions || 0).toLocaleString()}
                   </small>
                 </div>
 
@@ -5385,30 +6338,38 @@ function renderCustomerLedgerModal() {
                   </button>
                 </div>
               </div>
-
             </>
           ) : (
-            <p>Customer Ledger data পাওয়া যায়নি।</p>
+            <div style={{ padding: 25, textAlign: "center", color: "#64748b" }}>
+              Customer Ledger data পাওয়া যায়নি।
+            </div>
           )}
         </div>
 
         {/* FOOTER */}
         <div
           className="customer-ledger-modal-footer"
-          style={modalFooterStyle}
+          style={{
+            padding: "15px 22px",
+            background: "#ffffff",
+            borderTop: "1px solid #e2e8f0",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
         >
           <button
+            type="button"
             className="secondary-button"
             onClick={() => setShowCustomerLedger(false)}
           >
             Close
           </button>
         </div>
-
       </div>
     </div>
   );
 }
+
 
 
 
@@ -6178,6 +7139,285 @@ function renderPaymentEditModal() {
               disabled={paymentEditLoading}
             >
               {paymentEditLoading ? "Saving..." : "Save Correction"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function renderCustomerPaymentEditModal() {
+  return (
+    <div style={modalOverlayStyle}>
+      <div style={{ ...modalStyle, maxWidth: 650, width: "95%" }}>
+        <div style={modalHeaderStyle}>
+          <div>
+            <h2>Edit Customer Payment</h2>
+            <p>Customer Payment Correction</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowCustomerPaymentEdit(false)}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={submitCustomerPaymentEdit}>
+          <div style={{ padding: 20 }}>
+            <div style={{ marginBottom: 15 }}>
+              <label>Payment Amount (৳)</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                style={inputStyle}
+                value={customerPaymentEditForm.amount}
+                onChange={(e) =>
+                  setCustomerPaymentEditForm((prev) => ({
+                    ...prev,
+                    amount: e.target.value,
+                  }))
+                }
+                required
+              />
+            </div>
+
+            <div style={{ marginBottom: 15 }}>
+              <label>Payment Date</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={customerPaymentEditForm.transactionDate}
+                onChange={(e) =>
+                  setCustomerPaymentEditForm((prev) => ({
+                    ...prev,
+                    transactionDate: e.target.value,
+                  }))
+                }
+                required
+              />
+            </div>
+
+            <div style={{ marginBottom: 15 }}>
+              <label>Payment Method</label>
+              <select
+                style={inputStyle}
+                value={customerPaymentEditForm.paymentMethod}
+                onChange={(e) =>
+                  setCustomerPaymentEditForm((prev) => ({
+                    ...prev,
+                    paymentMethod: e.target.value,
+                  }))
+                }
+                required
+              >
+                <option value="CASH">Cash</option>
+                <option value="BANK">Bank</option>
+                <option value="BKASH">bKash</option>
+                <option value="NAGAD">Nagad</option>
+                <option value="ROCKET">Rocket</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 15 }}>
+              <label>Transaction ID</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={customerPaymentEditForm.transactionId}
+                onChange={(e) =>
+                  setCustomerPaymentEditForm((prev) => ({
+                    ...prev,
+                    transactionId: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div style={{ marginBottom: 15 }}>
+              <label>Reference</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={customerPaymentEditForm.reference}
+                onChange={(e) =>
+                  setCustomerPaymentEditForm((prev) => ({
+                    ...prev,
+                    reference: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div style={{ marginBottom: 15 }}>
+              <label>Notes</label>
+              <textarea
+                style={inputStyle}
+                rows="3"
+                value={customerPaymentEditForm.description}
+                onChange={(e) =>
+                  setCustomerPaymentEditForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div style={{ marginBottom: 15 }}>
+              <label>Correction Reason *</label>
+              <textarea
+                style={inputStyle}
+                rows="3"
+                placeholder="কেন এই Payment সংশোধন করছেন?"
+                value={customerPaymentEditForm.reason}
+                onChange={(e) =>
+                  setCustomerPaymentEditForm((prev) => ({
+                    ...prev,
+                    reason: e.target.value,
+                  }))
+                }
+                required
+              />
+            </div>
+
+            <div
+              style={{
+                background: "#fff7ed",
+                color: "#9a3412",
+                padding: 12,
+                borderRadius: 6,
+                fontSize: 13,
+              }}
+            >
+              Payment পরিবর্তন করলে Customer Ledger Balance পুনরায় হিসাব করা হবে।
+            </div>
+          </div>
+
+          <div style={modalFooterStyle}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setShowCustomerPaymentEdit(false)}
+              disabled={customerPaymentEditLoading}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={customerPaymentEditLoading}
+            >
+              {customerPaymentEditLoading ? "Saving..." : "Save Correction"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+function renderCustomerPaymentVoidModal() {
+  return (
+    <div style={modalOverlayStyle}>
+      <div style={{ ...modalStyle, maxWidth: 500, width: "95%" }}>
+        <div style={modalHeaderStyle}>
+          <div>
+            <h2 style={{ color: "#b91c1c" }}>
+              Void Customer Payment
+            </h2>
+            <p>Payment বাতিল করার নিশ্চিতকরণ</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowCustomerPaymentVoid(false)}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={submitCustomerPaymentVoid}>
+          <div style={{ padding: 20 }}>
+            <div
+              className="panel"
+              style={{
+                padding: 15,
+                marginBottom: 18,
+              }}
+            >
+              <small>Payment Amount</small>
+              <h2 style={{ margin: "5px 0" }}>
+                ৳ {Number(
+                  voidingCustomerPayment?.amount ||
+                  voidingCustomerPayment?.credit ||
+                  0
+                ).toLocaleString("en-BD")}
+              </h2>
+
+              <small>
+                Method: {voidingCustomerPayment?.paymentMethod || "-"}
+              </small>
+            </div>
+
+            <div
+              style={{
+                background: "#fee2e2",
+                color: "#991b1b",
+                padding: 12,
+                borderRadius: 6,
+                marginBottom: 18,
+                fontSize: 13,
+              }}
+            >
+              সতর্কতা: এই Payment Void করলে Customer-এর Ledger
+              Balance থেকে এর Credit বাদ যাবে। রেকর্ড মুছে ফেলা হবে না।
+            </div>
+
+            <div>
+              <label>Void Reason *</label>
+              <textarea
+                style={inputStyle}
+                rows="4"
+                placeholder="কেন এই Payment বাতিল করছেন?"
+                value={customerPaymentVoidReason}
+                onChange={(e) =>
+                  setCustomerPaymentVoidReason(e.target.value)
+                }
+                required
+              />
+            </div>
+          </div>
+
+          <div style={modalFooterStyle}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => setShowCustomerPaymentVoid(false)}
+              disabled={customerPaymentVoidLoading}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={customerPaymentVoidLoading}
+              style={{
+                background: "#dc2626",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                padding: "10px 18px",
+                cursor: "pointer",
+              }}
+            >
+              {customerPaymentVoidLoading
+                ? "Processing..."
+                : "Confirm Void"}
             </button>
           </div>
         </form>
@@ -7568,6 +8808,128 @@ const filteredCustomers = customers.filter((item) =>
   }
 
  
+function renderInventoryDashboard() {
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <h2>Inventory Dashboard</h2>
+          <p>Monitor your stock, warehouses and inventory activities.</p>
+        </div>
+        <div className="heading-actions">
+          <button
+            className="primary-button"
+            onClick={() => setActivePage("Stock In")}
+          >
+            <Plus size={18} /> Stock In
+          </button>
+        </div>
+      </div>
+
+      <section className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-top">
+            <div className="stat-icon blue">
+              <Package size={21} />
+            </div>
+          </div>
+          <p className="stat-title">Total Products</p>
+          <h3>0</h3>
+          <div className="stat-footer">All inventory products</div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-top">
+            <div className="stat-icon green">
+              <Warehouse size={21} />
+            </div>
+          </div>
+          <p className="stat-title">Total Warehouses</p>
+          <h3>0</h3>
+          <div className="stat-footer">Available warehouses</div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-top">
+            <div className="stat-icon orange">
+              <TrendingUp size={21} />
+            </div>
+          </div>
+          <p className="stat-title">Total Stock In</p>
+          <h3>0</h3>
+          <div className="stat-footer">Stock received</div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-top">
+            <div className="stat-icon red">
+              <CircleAlert size={21} />
+            </div>
+          </div>
+          <p className="stat-title">Low Stock Items</p>
+          <h3>0</h3>
+          <div className="stat-footer">Products below minimum stock</div>
+        </div>
+      </section>
+
+      <section className="analytics-grid">
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h3>Inventory Overview</h3>
+              <p>Stock management summary</p>
+            </div>
+          </div>
+
+          <div style={{ padding: "25px 0" }}>
+            <h3 style={{ fontSize: 18, marginBottom: 10 }}>
+              Welcome to Inventory Management
+            </h3>
+            <p style={{ color: "#8993a4", lineHeight: 1.7 }}>
+              Manage your warehouses, stock in, stock out,
+              stock transfers and inventory reports from here.
+            </p>
+          </div>
+        </div>
+
+        <div className="panel stock-panel">
+          <div className="panel-header">
+            <div>
+              <h3>Quick Actions</h3>
+              <p>Inventory operations</p>
+            </div>
+          </div>
+
+          {[
+            ["Stock In", "Receive new stock"],
+            ["Stock Out", "Issue or remove stock"],
+            ["Stock Transfer", "Transfer between warehouses"],
+            ["Current Stock Report", "View available stock"],
+          ].map(([label, description]) => (
+            <button
+              key={label}
+              className="view-stock-button"
+              style={{
+                width: "100%",
+                justifyContent: "space-between",
+                marginBottom: 10,
+              }}
+              onClick={() => setActivePage(label)}
+            >
+              <span>
+                <strong>{label}</strong>
+                <br />
+                <small>{description}</small>
+              </span>
+              <ArrowUpRight size={16} />
+            </button>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
 
 function renderProducts() {
   return (
@@ -12326,19 +13688,560 @@ return (
           </p>
         </div>
 
-        <button
-          type="button"
-          className="primary-button"
-          onClick={openSalesForm}
-          style={{ background: "#f97316", borderColor: "#f97316" }}
-        >
-          <Plus size={17} /> New Sales Invoice
-        </button>
+     {activePage !== "Sales Collection" &&
+  activePage !== "Customer Payment" && (
+  <button
+    type="button"
+    className="primary-button"
+    onClick={openSalesForm}
+    style={{ background: "#f97316", borderColor: "#f97316" }}
+  >
+    <Plus size={17} /> New Sales Invoice
+  </button>
+)}
+
+{(activePage === "Sales Collection" ||
+  activePage === "Customer Payment") && (
+  <button
+    type="button"
+    onClick={loadCollectionHistory}
+    disabled={collectionHistoryLoading}
+    style={{
+      background: "#0f766e",
+      color: "#fff",
+      border: "none",
+      borderRadius: 7,
+      padding: "9px 14px",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    {collectionHistoryLoading ? "Loading..." : "Refresh Collection"}
+  </button>
+)}
       </div>
 
     
      
+{/* ======================================== */}
+{/* SALES COLLECTION PAGE */}
+{/* ======================================== */}
 
+{(activePage === "Sales Collection" ||
+  activePage === "Customer Payment") && (
+  <div style={{ display: "grid", gap: 16 }}>
+
+    {/* COLLECTION FORM */}
+    <div style={{
+      background: "#fff",
+      border: "1px solid #e2e8f0",
+      borderRadius: 10,
+      padding: 18,
+    }}>
+      <h3 style={{
+        margin: "0 0 16px",
+        color: "#172554",
+        fontSize: 17,
+        fontWeight: 800,
+      }}>
+        💰 Receive Customer Payment
+      </h3>
+
+      {/* CUSTOMER SEARCH */}
+      <div style={{ marginBottom: 16, position: "relative" }}>
+        <label style={{
+          display: "block",
+          fontSize: 12,
+          fontWeight: 700,
+          color: "#475569",
+          marginBottom: 6,
+        }}>
+          Search Customer *
+        </label>
+
+        <input
+          type="text"
+          value={collectionCustomerSearch}
+          onChange={(e) => searchCollectionCustomers(e.target.value)}
+          onFocus={() => {
+            if (collectionCustomerOptions.length > 0) {
+              setShowCollectionCustomerOptions(true);
+            }
+          }}
+          placeholder="Customer name or mobile number..."
+          style={{
+            width: "100%",
+            padding: "11px 12px",
+            border: "1px solid #cbd5e1",
+            borderRadius: 7,
+            fontSize: 13,
+            boxSizing: "border-box",
+          }}
+        />
+
+        {collectionCustomerLoading && (
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 5 }}>
+            Searching customers...
+          </div>
+        )}
+
+        {showCollectionCustomerOptions &&
+          collectionCustomerOptions.length > 0 && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              zIndex: 20,
+              background: "#fff",
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              maxHeight: 220,
+              overflowY: "auto",
+              boxShadow: "0 5px 15px rgba(0,0,0,.12)",
+            }}>
+              {collectionCustomerOptions.map((customer) => (
+                <button
+                  key={customer._id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCollectionCustomer(customer);
+                    setCollectionCustomerSearch(
+                      customer.customerName || ""
+                    );
+                    setShowCollectionCustomerOptions(false);
+                    setCollectionCustomerOptions([]);
+                    setCollectionAmount("");
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "11px 12px",
+                    border: "none",
+                    borderBottom: "1px solid #f1f5f9",
+                    background: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#172554",
+                  }}>
+                    {customer.customerName}
+                  </div>
+                  <div style={{
+                    fontSize: 11,
+                    color: "#64748b",
+                    marginTop: 3,
+                  }}>
+                    {customer.mobile || ""}
+                    {customer.companyName
+                      ? ` • ${customer.companyName}`
+                      : ""}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+      </div>
+
+      {/* SELECTED CUSTOMER DUE */}
+      {selectedCollectionCustomer && (
+        <div style={{
+          padding: 15,
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          borderRadius: 8,
+          marginBottom: 16,
+        }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            flexWrap: "wrap",
+          }}>
+            <div>
+              <div style={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: "#172554",
+              }}>
+                {selectedCollectionCustomer.customerName}
+              </div>
+              <div style={{
+                fontSize: 12,
+                color: "#475569",
+                marginTop: 4,
+              }}>
+                {selectedCollectionCustomer.mobile || ""}
+              </div>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <div style={{
+                fontSize: 11,
+                color: "#64748b",
+                fontWeight: 700,
+              }}>
+                CURRENT CUSTOMER DUE
+              </div>
+              <div style={{
+                fontSize: 21,
+                fontWeight: 800,
+                color: "#dc2626",
+                marginTop: 3,
+              }}>
+                ৳ {Number(
+                  selectedCollectionCustomer.currentBalance || 0
+                ).toLocaleString("en-BD")}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAYMENT FIELDS */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+        gap: 13,
+      }}>
+
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            Collection Amount (৳) *
+          </label>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={collectionAmount}
+            onChange={(e) => setCollectionAmount(e.target.value)}
+            placeholder="Enter amount"
+            disabled={!selectedCollectionCustomer}
+            style={{
+              width: "100%",
+              padding: 10,
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            Payment Method *
+          </label>
+          <select
+            value={collectionPaymentMethod}
+            onChange={(e) => setCollectionPaymentMethod(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 10,
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              background: "#fff",
+              boxSizing: "border-box",
+            }}
+          >
+            <option value="CASH">Cash</option>
+            <option value="BANK">Bank</option>
+            <option value="BKASH">bKash</option>
+            <option value="NAGAD">Nagad</option>
+            <option value="ROCKET">Rocket</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            Transaction Date *
+          </label>
+          <input
+            type="date"
+            value={collectionTransactionDate}
+            onChange={(e) => setCollectionTransactionDate(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 10,
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            Transaction ID
+          </label>
+          <input
+            type="text"
+            value={collectionTransactionId}
+            onChange={(e) => setCollectionTransactionId(e.target.value)}
+            placeholder="Transaction ID"
+            style={{
+              width: "100%",
+              padding: 10,
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            Reference
+          </label>
+          <input
+            type="text"
+            value={collectionReference}
+            onChange={(e) => setCollectionReference(e.target.value)}
+            placeholder="Reference (optional)"
+            style={{
+              width: "100%",
+              padding: 10,
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            Notes
+          </label>
+          <input
+            type="text"
+            value={collectionDescription}
+            onChange={(e) => setCollectionDescription(e.target.value)}
+            placeholder="Payment notes (optional)"
+            style={{
+              width: "100%",
+              padding: 10,
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* SUBMIT */}
+      <div style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        marginTop: 18,
+      }}>
+        <button
+          type="button"
+          onClick={submitSalesCollection}
+          disabled={
+            collectionLoading ||
+            !selectedCollectionCustomer ||
+            !collectionAmount
+          }
+          style={{
+            padding: "11px 22px",
+            border: "none",
+            borderRadius: 7,
+            background: collectionLoading ? "#94a3b8" : "#0f766e",
+            color: "#fff",
+            fontWeight: 800,
+            cursor: collectionLoading ? "not-allowed" : "pointer",
+          }}
+        >
+          {collectionLoading ? "Processing..." : "💰 Collect Payment"}
+        </button>
+      </div>
+    </div>
+
+    {/* COLLECTION HISTORY */}
+    <div style={{
+      background: "#fff",
+      border: "1px solid #e2e8f0",
+      borderRadius: 10,
+      padding: 16,
+    }}>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+        marginBottom: 14,
+      }}>
+        <h3 style={{
+          margin: 0,
+          color: "#172554",
+          fontSize: 16,
+          fontWeight: 800,
+        }}>
+          Collection History
+        </h3>
+
+        <button
+          type="button"
+          onClick={loadCollectionHistory}
+          disabled={collectionHistoryLoading}
+          style={{
+            padding: "8px 13px",
+            border: "1px solid #0f766e",
+            borderRadius: 7,
+            background: "#fff",
+            color: "#0f766e",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {collectionHistoryLoading ? "Loading..." : "↻ Load History"}
+        </button>
+      </div>
+
+      {collectionHistoryLoading ? (
+        <div style={{
+          padding: 25,
+          textAlign: "center",
+          color: "#64748b",
+        }}>
+          Loading collection history...
+        </div>
+      ) : collectionHistory.length === 0 ? (
+        <div style={{
+          padding: 25,
+          textAlign: "center",
+          color: "#64748b",
+          background: "#f8fafc",
+          borderRadius: 7,
+          fontSize: 13,
+        }}>
+          No collection records found. Load History চাপুন।
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            minWidth: 850,
+            fontSize: 12,
+          }}>
+            <thead>
+              <tr style={{ background: "#f1f5f9" }}>
+                {[
+                  "Date",
+                  "Customer",
+                  "Mobile",
+                  "Payment Method",
+                  "Transaction ID",
+                  "Amount",
+                  "Notes",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      padding: "11px 9px",
+                      textAlign: "left",
+                      color: "#475569",
+                      borderBottom: "1px solid #e2e8f0",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {collectionHistory.map((item) => (
+                <tr
+                  key={item._id}
+                  style={{ borderBottom: "1px solid #e2e8f0" }}
+                >
+                  <td style={{ padding: 10, whiteSpace: "nowrap" }}>
+                    {item.transactionDate
+                      ? new Date(item.transactionDate).toLocaleDateString("en-GB")
+                      : "-"}
+                  </td>
+
+                  <td style={{ padding: 10, fontWeight: 700 }}>
+                    {item.customerId?.customerName || "Unknown"}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {item.customerId?.mobile || "-"}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {item.paymentMethod || "-"}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {item.transactionId || "-"}
+                  </td>
+
+                  <td style={{
+                    padding: 10,
+                    fontWeight: 800,
+                    color: "#0f766e",
+                    whiteSpace: "nowrap",
+                  }}>
+                    ৳ {Number(item.amount || item.credit || 0).toLocaleString("en-BD")}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {item.description || item.reference || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
 {/* SALES DASHBOARD */}
 {(activePage === "Sales Dashboard" || activePage === "Sales") && (
@@ -12355,15 +14258,73 @@ return (
       </div>
     ) : salesDashboard ? (
       <>
-        {/* TODAY SUMMARY */}
-        <h3 style={{
-          margin: "0 0 10px",
-          color: "#172554",
-          fontSize: 15,
-          fontWeight: 800,
+        {/* SELECTED DAY SALES SUMMARY */}
+        <div id="daily-sales-summary-print" style={{
+          background: "#fff",
+          padding: 12,
+          borderRadius: 9,
+          marginBottom: 18,
         }}>
-          Today's Sales Summary
-        </h3>
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          marginBottom: 12,
+        }}>
+          <h3 style={{
+            margin: 0,
+            color: "#172554",
+            fontSize: 15,
+            fontWeight: 800,
+          }}>
+            Daily Sales Summary
+          </h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, color: "#475569", fontWeight: 700 }}>From</label>
+            <input
+              type="date"
+              value={salesDashboardStartDate}
+              max={salesDashboardEndDate}
+              onChange={(e) => setSalesDashboardStartDate(e.target.value)}
+              style={{ padding: "7px 9px", border: "1px solid #cbd5e1", borderRadius: 7 }}
+            />
+            <label style={{ fontSize: 12, color: "#475569", fontWeight: 700 }}>To</label>
+            <input
+              type="date"
+              value={salesDashboardEndDate}
+              min={salesDashboardStartDate}
+              onChange={(e) => setSalesDashboardEndDate(e.target.value)}
+              style={{ padding: "7px 9px", border: "1px solid #cbd5e1", borderRadius: 7 }}
+            />
+            <button
+              type="button"
+              onClick={() => loadSalesDashboard(salesDashboardPeriod, salesDashboardStartDate, salesDashboardEndDate)}
+              disabled={salesDashboardLoading}
+              style={{ padding: "7px 12px", border: "1px solid #0f766e", borderRadius: 7, background: "#0f766e", color: "#fff", fontWeight: 700, cursor: "pointer" }}
+            >
+              {salesDashboardLoading ? "Loading..." : "Filter"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const content = document.getElementById("daily-sales-summary-print");
+                if (!content) return;
+                const printWindow = window.open("", "_blank", "width=900,height=700");
+                if (!printWindow) { toast.error("Print window blocked. Please allow popups."); return; }
+                printWindow.document.write(`<!doctype html><html><head><title>Daily Sales Summary</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#172554}h2{margin:0 0 18px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.summary>div{border:1px solid #cbd5e1;border-radius:8px;padding:14px}.summary span{font-size:12px;color:#64748b}.summary h3{font-size:20px;margin:8px 0 0}@media print{body{padding:0}}</style></head><body><h2>Sales Summary - ${salesDashboardStartDate} to ${salesDashboardEndDate}</h2><div class="summary">${Array.from(content.querySelectorAll("[data-daily-card='true']")).map((card) => `<div>${card.innerHTML}</div>`).join("")}</div></body></html>`);
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
+              }}
+              style={{ padding: "7px 12px", border: "1px solid #2563eb", borderRadius: 7, background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer" }}
+            >
+              🖨️ Print
+            </button>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 10 }}>Selected Range: {salesDashboardStartDate} to {salesDashboardEndDate}</div>
 
         <div style={{
           display: "grid",
@@ -12397,13 +14358,25 @@ return (
               icon: "⚖️",
             },
             {
+              title: "Today's OWN Profit",
+              value: `৳ ${Number(salesDashboard.today.ownProfit || 0).toLocaleString("en-BD")}`,
+              color: "#16a34a",
+              icon: "📈",
+            },
+            {
               title: "Today's Paid",
               value: `৳ ${Number(salesDashboard.today.paid || 0).toLocaleString("en-BD")}`,
               color: "#0891b2",
               icon: "💵",
             },
+            {
+              title: "Daily Sale Due",
+              value: `৳ ${Number(salesDashboard.today.saleDue || 0).toLocaleString("en-BD")}`,
+              color: "#dc2626",
+              icon: "⚠️",
+            },
           ].map((item) => (
-            <div key={item.title} style={{
+            <div key={item.title} data-daily-card="true" style={{
               padding: "13px 15px",
               border: "1px solid #e2e8f0",
               borderRadius: 9,
@@ -12435,6 +14408,7 @@ return (
               </h3>
             </div>
           ))}
+        </div>
         </div>
 
         {/* OVERALL SUMMARY */}
@@ -12477,6 +14451,12 @@ return (
               value: `৳ ${Number(salesDashboard.overall.netSales || 0).toLocaleString("en-BD")}`,
               color: "#ea580c",
               icon: "💰",
+            },
+            {
+              title: "Total OWN Profit",
+              value: `৳ ${Number(salesDashboard.overall.ownProfit || 0).toLocaleString("en-BD")}`,
+              color: "#16a34a",
+              icon: "📈",
             },
             {
               title: "Total Paid",
@@ -12813,6 +14793,567 @@ return (
   </>
 )}
 
+
+{/* OWN SALES REPORTS */}
+{[
+  "Daily Sales Summary",
+  "Weekly Sales Summary",
+  "Monthly Sales Summary",
+  "Yearly Sales Summary",
+  "Lot Wise Sales",
+  "Product Wise Sales",
+  "Category Wise Sales",
+  "Supplier Wise Sales",
+  "OWN Profit / Loss",
+].includes(activePage) && (
+  <div style={{
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+  }}>
+    <h2 style={{ margin: 0, fontSize: 18, color: "#172554" }}>
+      {activePage}
+    </h2>
+
+    <div style={{
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+      marginTop: 15,
+      alignItems: "end",
+    }}>
+      <div>
+        <label style={fieldLabel}>Start Date</label>
+        <input
+          type="date"
+          style={compactInput}
+          value={ownSalesReportFrom}
+          onChange={(e) => setOwnSalesReportFrom(e.target.value)}
+        />
+      </div>
+
+      <div>
+        <label style={fieldLabel}>End Date</label>
+        <input
+          type="date"
+          style={compactInput}
+          value={ownSalesReportTo}
+          onChange={(e) => setOwnSalesReportTo(e.target.value)}
+        />
+      </div>
+
+      <button
+        type="button"
+        className="primary-button"
+        disabled={ownSalesReportLoading}
+        onClick={() => {
+          if (activePage === "OWN Profit / Loss") {
+            loadOwnSalesRegister();
+            return;
+          }
+
+          const reportTypes = {
+            "Daily Sales Summary": "daily",
+            "Weekly Sales Summary": "weekly",
+            "Monthly Sales Summary": "monthly",
+            "Yearly Sales Summary": "yearly",
+            "Lot Wise Sales": "lot",
+            "Product Wise Sales": "product",
+            "Category Wise Sales": "category",
+            "Supplier Wise Sales": "supplier",
+          };
+
+          loadOwnSalesReport(reportTypes[activePage]);
+        }}
+      >
+        {ownSalesReportLoading ? "Loading..." : "Search Report"}
+      </button>
+    </div>
+
+    {ownSalesReportLoading && (
+      <p style={{ textAlign: "center", padding: 20 }}>
+        Loading OWN Sales Report...
+      </p>
+    )}
+
+    {/* OWN PROFIT / LOSS: INVOICE REGISTER */}
+    {activePage === "OWN Profit / Loss" &&
+      !ownSalesReportLoading && ownSalesRegister && (
+     
+     <>
+
+         <div
+      className="no-print"
+      style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        marginTop: 15,
+      }}
+    >
+      <button
+        type="button"
+        className="primary-button"
+        onClick={() => window.print()}
+      >
+        <i className="fa fa-print" /> Print Profit / Loss
+      </button>
+    </div>
+
+    <div className="own-profit-print-area">
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+          marginTop: 15,
+        }}>
+          {[
+            ["Total Invoice No", ownSalesRegister.summary?.totalInvoices, true],
+            ["Total Sale Amount", ownSalesRegister.summary?.totalSaleAmount],
+            ["Paid Amount", ownSalesRegister.summary?.paidAmount],
+            ["Dues Amount", ownSalesRegister.summary?.dueAmount],
+            ["Balance Amount", ownSalesRegister.summary?.balanceAmount],
+            ["Profit", ownSalesRegister.summary?.profit],
+          ].map(([label, value, isCount]) => (
+            <div key={label} style={{
+              padding: 12,
+              border: "1px solid #e2e8f0",
+              borderRadius: 8,
+              background: "#f8fafc",
+            }}>
+              <div style={{ fontSize: 11, color: "#64748b" }}>{label}</div>
+              <strong style={{ fontSize: 17, color: "#172554" }}>
+                {isCount
+                  ? Number(value || 0).toLocaleString("en-BD")
+                  : `৳ ${Number(value || 0).toLocaleString("en-BD", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`}
+              </strong>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <h3 style={{ margin: "0 0 10px", fontSize: 15, color: "#172554" }}>
+            Invoice Wise Sales Register
+          </h3>
+          <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+            <table style={{ minWidth: 1050, width: "100%" }}>
+              <thead>
+                <tr>
+                  <th>DATE</th>
+                  <th>CUSTOMER NAME</th>
+                  <th>ADDRESS</th>
+                  <th>INVOICE NUMBER</th>
+                  <th>SALE AMOUNT</th>
+                  <th>PAID</th>
+                  <th>DUE</th>
+                  <th>PROFIT</th>
+                  <th>DETAILS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(ownSalesRegister.data || []).map((row) => {
+                  const isExpanded = expandedOwnInvoiceId === row._id;
+
+                  return (
+                    <Fragment key={row._id}>
+                      <tr>
+                        <td>
+                          {row.date
+                            ? new Date(row.date).toLocaleDateString("en-GB")
+                            : "-"}
+                        </td>
+                        <td>{row.customerName || "-"}</td>
+                        <td style={{ maxWidth: 190, whiteSpace: "normal" }}>
+                          {row.address || "-"}
+                        </td>
+                        <td>{row.invoiceNumber || "-"}</td>
+                        <td>৳ {Number(row.saleAmount || 0).toLocaleString("en-BD")}</td>
+                        <td>৳ {Number(row.paidAmount || 0).toLocaleString("en-BD")}</td>
+                        <td>৳ {Number(row.dueAmount || 0).toLocaleString("en-BD")}</td>
+                        <td>৳ {Number(row.profit || 0).toLocaleString("en-BD")}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            style={{ padding: "5px 9px", fontSize: 11 }}
+                            onClick={() =>
+                              setExpandedOwnInvoiceId(isExpanded ? null : row._id)
+                            }
+                          >
+                            {isExpanded ? "Hide" : "View Items"}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr key={`${row._id}-details`}>
+                          <td colSpan={9} style={{ padding: 10, background: "#f8fafc" }}>
+                            <div style={{ overflowX: "auto" }}>
+                              <table style={{ minWidth: 950, width: "100%" }}>
+                                <thead>
+                                  <tr>
+                                    <th>LOT</th>
+                                    <th>PRODUCT</th>
+                                    <th>BAGS</th>
+                                    <th>WEIGHT KG</th>
+                                    <th>RATE</th>
+                                    <th>COMMISSION</th>
+                                    <th>LABOUR</th>
+                                    <th>SALE AMOUNT</th>
+                                    <th>RETURN</th>
+                                    <th>PROFIT</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(row.items || []).map((item, index) => (
+                                    <tr key={`${row._id}-item-${index}`}>
+                                      <td>{item.lotCode || "-"}</td>
+                                      <td>{item.productName || "-"}</td>
+                                      <td>{Number(item.netBags ?? item.bags ?? 0)}</td>
+                                      <td>{Number(item.netWeightKg ?? item.weightKg ?? 0).toLocaleString("en-BD")}</td>
+                                      <td>৳ {Number(item.rate || 0).toLocaleString("en-BD")}</td>
+                                      <td>৳ {Number(item.commission || 0).toLocaleString("en-BD")}</td>
+                                      <td>৳ {Number(item.labour || 0).toLocaleString("en-BD")}</td>
+                                      <td>৳ {Number(item.saleAmount || 0).toLocaleString("en-BD")}</td>
+                                      <td>৳ {Number(item.returnAmount || 0).toLocaleString("en-BD")}</td>
+                                      <td>৳ {Number(item.profit || 0).toLocaleString("en-BD")}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+
+                {(!ownSalesRegister.data || ownSalesRegister.data.length === 0) && (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: "center", padding: 20 }}>
+                      No invoice records found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 22 }}>
+          <h3 style={{ margin: "0 0 10px", fontSize: 15, color: "#172554" }}>
+            Lot & Product Wise Summary
+          </h3>
+          <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+            <table style={{ minWidth: 1250, width: "100%" }}>
+              <thead>
+                <tr>
+                  <th>LOT</th>
+                  <th>PRODUCT</th>
+                  <th>SOLD BAGS</th>
+                  <th>RETURN BAGS</th>
+                  <th>NET BAGS</th>
+                  <th>SOLD KG</th>
+                  <th>RETURN KG</th>
+                  <th>NET KG</th>
+                  <th>SALE AMOUNT</th>
+                  <th>RETURN AMOUNT</th>
+                  <th>NET SALE</th>
+                  <th>COMMISSION</th>
+                  <th>LABOUR</th>
+                  <th>PROFIT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(ownSalesRegister.lotProductSummary || []).map((row, index) => (
+                  <tr key={`${row.lotId || row.lotCode}-${row.productId || index}`}>
+                    <td>{row.lotCode || "-"}</td>
+                    <td>{row.productName || "-"}</td>
+                    <td>{Number(row.soldBags || 0)}</td>
+                    <td>{Number(row.returnedBags || 0)}</td>
+                    <td>{Number(row.netBags || 0)}</td>
+                    <td>{Number(row.soldWeightKg || 0).toLocaleString("en-BD")}</td>
+                    <td>{Number(row.returnedWeightKg || 0).toLocaleString("en-BD")}</td>
+                    <td>{Number(row.netWeightKg || 0).toLocaleString("en-BD")}</td>
+                    <td>৳ {Number(row.saleAmount || 0).toLocaleString("en-BD")}</td>
+                    <td>৳ {Number(row.returnAmount || 0).toLocaleString("en-BD")}</td>
+                    <td>৳ {Number(row.netSaleAmount || 0).toLocaleString("en-BD")}</td>
+                    <td>৳ {Number(row.commission || 0).toLocaleString("en-BD")}</td>
+                    <td>৳ {Number(row.labour || 0).toLocaleString("en-BD")}</td>
+                    <td>৳ {Number(row.profit || 0).toLocaleString("en-BD")}</td>
+                  </tr>
+                ))}
+
+                {(!ownSalesRegister.lotProductSummary ||
+                  ownSalesRegister.lotProductSummary.length === 0) && (
+                  <tr>
+                    <td colSpan={14} style={{ textAlign: "center", padding: 20 }}>
+                      No lot/product records found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+           </div>
+      </div>
+      </>
+    )}
+
+    {/* EXISTING GROUPED REPORTS: KEEP UNCHANGED */}
+    {activePage !== "OWN Profit / Loss" &&
+      !ownSalesReportLoading && ownSalesReport && (
+      <>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+          marginTop: 15,
+        }}>
+          {[
+            ["Gross Sales", "grossSales"],
+            ["Return Amount", "returnAmount"],
+            ["Net Sales", "netSales"],
+            ["Total Cost", "totalCost"],
+            ["Net Cost", "netCost"],
+            ["Gross Profit", "grossProfit"],
+            ["Other Cost", "otherCost"],
+            ["Discount", "discount"],
+            ["Net Profit", "netProfit"],
+          ].map(([label, key]) => (
+            <div key={key} style={{
+              padding: 12,
+              border: "1px solid #e2e8f0",
+              borderRadius: 8,
+              background: "#f8fafc",
+            }}>
+              <div style={{ fontSize: 11, color: "#64748b" }}>{label}</div>
+              <strong style={{ fontSize: 17, color: "#172554" }}>
+                ৳ {Number(ownSalesReport.summary?.[key] || 0).toLocaleString("en-BD")}
+              </strong>
+            </div>
+          ))}
+        </div>
+
+      <div
+  className="no-print"
+  style={{
+    display: "flex",
+    justifyContent: "flex-end",
+    marginTop: 15,
+  }}
+>
+  <button
+    type="button"
+    className="primary-button"
+    onClick={() => window.print()}
+  >
+    <i className="fa fa-print" /> Print Report
+  </button>
+</div>
+
+<div
+  className="own-sales-print-area"
+  style={{ marginTop: 18, overflowX: "auto" }}
+>
+          <table>
+            <thead>
+              <tr>
+                <th>NAME / GROUP</th>
+                <th>SOLD BAGS</th>
+                <th>RETURN BAGS</th>
+                <th>NET BAGS</th>
+                <th>NET WEIGHT KG</th>
+                <th>GROSS SALES</th>
+                <th>RETURN AMOUNT</th>
+                <th>NET SALES</th>
+                <th>NET PROFIT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ownSalesReport.data?.map((row, index) => {
+                const isTimeGroupedReport = [
+                  "Daily Sales Summary",
+                  "Weekly Sales Summary",
+                  "Monthly Sales Summary",
+                  "Yearly Sales Summary",
+                ].includes(activePage);
+                const groupKey = String(row.key ?? row.name ?? index);
+                const isGroupExpanded = expandedOwnSalesGroupKey === groupKey;
+                const invoiceDetails = row.invoiceDetails || [];
+
+                return (
+                  <Fragment key={`${groupKey}-${index}`}>
+                    <tr>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span>{row.name || "-"}</span>
+                          {isTimeGroupedReport && (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              style={{ padding: "4px 8px", fontSize: 11, whiteSpace: "nowrap" }}
+                              onClick={() => {
+                                setExpandedOwnSalesGroupKey(isGroupExpanded ? null : groupKey);
+                                setExpandedOwnSalesGroupInvoiceId(null);
+                              }}
+                            >
+                              {isGroupExpanded ? "Hide Invoices" : `View Invoices (${invoiceDetails.length})`}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td>{Number(row.soldBags || 0)}</td>
+                      <td>{Number(row.returnedBags || 0)}</td>
+                      <td>{Number(row.netBags || 0)}</td>
+                      <td>{Number(row.netWeightKg || 0).toLocaleString("en-BD")}</td>
+                      <td>৳ {Number(row.grossSales || 0).toLocaleString("en-BD")}</td>
+                      <td>৳ {Number(row.returnAmount || 0).toLocaleString("en-BD")}</td>
+                      <td>৳ {Number(row.netSales || 0).toLocaleString("en-BD")}</td>
+                      <td>৳ {Number(row.netProfit || 0).toLocaleString("en-BD")}</td>
+                    </tr>
+
+                    {isTimeGroupedReport && isGroupExpanded && (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 12, background: "#f8fafc" }}>
+                          {invoiceDetails.length === 0 ? (
+                            <p style={{ margin: 4, color: "#64748b", fontSize: 12 }}>
+                              এই Group-এ কোনো Single Sale Invoice পাওয়া যায়নি।
+                            </p>
+                          ) : (
+                            <div style={{ overflowX: "auto" }}>
+                              <table style={{ minWidth: 950, width: "100%", background: "#fff" }}>
+                                <thead>
+                                  <tr>
+                                    <th>DATE</th>
+                                    <th>INVOICE NUMBER</th>
+                                    <th>CUSTOMER</th>
+                                    <th>OWN ITEMS</th>
+                                    <th>SALE AMOUNT</th>
+                                    <th>COST</th>
+                                    <th>PROFIT</th>
+                                    <th>DETAILS</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {invoiceDetails.map((invoice, invoiceIndex) => {
+                                    const invoiceId = String(invoice._id || invoice.invoiceNumber || invoiceIndex);
+                                    const isInvoiceExpanded = expandedOwnSalesGroupInvoiceId === invoiceId;
+                                    const invoiceSaleAmount = (invoice.items || []).reduce(
+  (sum, item) => sum + Number(item.saleAmount || 0),
+  0
+);
+
+const invoiceTotalCost = (invoice.items || []).reduce(
+  (sum, item) => sum + Number(item.cost || 0),
+  0
+);
+
+const invoiceProfit = (invoice.items || []).reduce(
+  (sum, item) => sum + Number(item.profit || 0),
+  0
+);
+                                    return (
+                                      <Fragment key={invoiceId}>
+                                        <tr>
+<td>{invoice.date ? new Date(invoice.date).toLocaleDateString("en-GB") : "-"}</td>                                          
+                                          <td>{invoice.invoiceNumber || "-"}</td>
+                                          <td>{invoice.customerName || "-"}</td>
+                                          <td>{(invoice.items || []).length}</td>
+                                        <td>৳ {invoiceSaleAmount.toLocaleString("en-BD", { maximumFractionDigits: 2 })}</td>
+                                         <td>৳ {invoiceTotalCost.toLocaleString("en-BD", { maximumFractionDigits: 2 })}</td>
+                                        <td>৳ {invoiceProfit.toLocaleString("en-BD", { maximumFractionDigits: 2 })}</td>
+                                          <td>
+                                            <button
+                                              type="button"
+                                              className="secondary-button"
+                                              style={{ padding: "4px 8px", fontSize: 11 }}
+                                              onClick={() => setExpandedOwnSalesGroupInvoiceId(isInvoiceExpanded ? null : invoiceId)}
+                                            >
+                                              {isInvoiceExpanded ? "Hide Items" : "View Items"}
+                                            </button>
+                                          </td>
+                                        </tr>
+                                        {isInvoiceExpanded && (
+                                          <tr>
+                                            <td colSpan={8} style={{ padding: 10, background: "#fff7ed" }}>
+                                              <div style={{ overflowX: "auto" }}>
+                                                <table style={{ minWidth: 1050, width: "100%" }}>
+                                                  <thead>
+                                                    <tr>
+                                                      <th>LOT</th>
+                                                      <th>PRODUCT</th>
+                                                      <th>BAGS</th>
+                                                      <th>WEIGHT KG</th>
+                                                      <th>RATE / KG</th>
+                                                      <th>PRODUCT SALE</th>
+                                                      <th>COMMISSION</th>
+                                                      <th>LABOUR</th>
+                                                      <th>ITEM COST</th>
+                                                      <th>PROFIT</th>
+                                                    </tr>
+                                                  </thead>
+                                                  <tbody>
+                                                    {(invoice.items || []).map((item, itemIndex) => (
+                                                      <tr key={`${invoiceId}-item-${itemIndex}`}>
+                                                        <td>{item.lotCode || "-"}</td>
+                                                        <td>{item.productName || "-"}</td>
+                                                        <td>{Number(item.bags || 0).toLocaleString("en-BD")}</td>
+                                                        <td>{Number(item.weightKg || 0).toLocaleString("en-BD")}</td>
+                                                        <td>৳ {Number(item.rate || 0).toLocaleString("en-BD")}</td>
+                                                        <td>৳ {Number(item.productTotal || 0).toLocaleString("en-BD")}</td>
+                                                        <td>৳ {Number(item.commission || 0).toLocaleString("en-BD")}</td>
+                                                        <td>৳ {Number(item.labour || 0).toLocaleString("en-BD")}</td>
+                                                       <td>৳ {Number(item.cost || 0).toLocaleString("en-BD")}</td>
+                                                        <td>৳ {Number(item.profit || 0).toLocaleString("en-BD")}</td>
+                                                      </tr>
+                                                    ))}
+                                                  </tbody>
+                                                </table>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </Fragment>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+
+              {(!ownSalesReport.data || ownSalesReport.data.length === 0) && (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: "center", padding: 20 }}>
+                    No report records found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </>
+    )}
+
+    {!ownSalesReportLoading &&
+      (activePage === "OWN Profit / Loss" ? !ownSalesRegister : !ownSalesReport) && (
+      <p style={{ color: "#64748b", fontSize: 12, marginTop: 12 }}>
+        No report data loaded. Select dates and search.
+      </p>
+    )}
+  </div>
+)}
 
       {/* SALES INVOICE HISTORY */}
       {(activePage === "Sales Invoice History" || activePage === "Sales") && (
@@ -17297,6 +19838,22 @@ function renderSuppliers() {
 }
 
 function renderCustomers() {
+  const activeCustomerList = customers.filter(
+    (c) => c.isActive !== false
+  );
+
+  const totalCustomerDue = activeCustomerList.reduce(
+    (total, c) => {
+      const balance = Number(c.currentBalance || 0);
+      return total + (balance > 0 ? balance : 0);
+    },
+    0
+  );
+
+  const zeroDueCustomers = activeCustomerList.filter(
+    (c) => Number(c.currentBalance || 0) === 0
+  ).length;
+
   return (
     <div className="panel" style={{ padding: 22 }}>
       <div style={pageHeaderStyle}>
@@ -17326,7 +19883,54 @@ function renderCustomers() {
   </button>
 </div>
       </div>
+      {/* CUSTOMER SUMMARY */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 14,
+          margin: "20px 0",
+        }}
+      >
+        <div style={{
+          background: "#eff6ff",
+          padding: 18,
+          borderRadius: 10,
+          border: "1px solid #bfdbfe",
+        }}>
+          <p style={{ margin: 0, color: "#1d4ed8" }}>Total Customers</p>
+          <h2 style={{ margin: "8px 0 0", color: "#1e40af" }}>
+            {activeCustomerList.length}
+          </h2>
+        </div>
 
+        <div style={{
+          background: "#fef2f2",
+          padding: 18,
+          borderRadius: 10,
+          border: "1px solid #fecaca",
+        }}>
+          <p style={{ margin: 0, color: "#dc2626" }}>Total Customer Due</p>
+          <h2 style={{ margin: "8px 0 0", color: "#b91c1c" }}>
+            ৳ {totalCustomerDue.toLocaleString("en-BD", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </h2>
+        </div>
+
+        <div style={{
+          background: "#f0fdf4",
+          padding: 18,
+          borderRadius: 10,
+          border: "1px solid #bbf7d0",
+        }}>
+          <p style={{ margin: 0, color: "#15803d" }}>Zero Due Customers</p>
+          <h2 style={{ margin: "8px 0 0", color: "#166534" }}>
+            {zeroDueCustomers}
+          </h2>
+        </div>
+      </div>
       <input
         style={{ ...inputStyle, maxWidth: 350, margin: "15px 0" }}
         placeholder="Search customer name or mobile..."
@@ -17460,7 +20064,331 @@ function renderCustomers() {
     </div>
   );
 }
+// ========================================
+// CUSTOMER DUE SUMMARY
+// ========================================
 
+function renderCustomerDueSummary() {
+  const formatMoney = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const handleSearch = () => {
+    loadCustomerDueSummary({
+      startDate: dueStartDate,
+      endDate: dueEndDate,
+      search: dueCustomerSearch,
+      address: dueCustomerAddress,
+    });
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      toast.error("Please allow popups to print");
+      return;
+    }
+
+    const rows = dueSummaryCustomers.map((c, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${c.customerName || "-"}</td>
+        <td>${c.companyName || "-"}</td>
+        <td>${c.mobile || "-"}</td>
+        <td>${c.address || "-"}</td>
+        <td style="text-align:right">
+          ${formatMoney(c.openingDueAtStart)}
+        </td>
+        <td style="text-align:right">
+          ${formatMoney(c.currentBalance)}
+        </td>
+      </tr>
+    `).join("");
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Customer Due Summary</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+          }
+          h2 { text-align: center; }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+          }
+          th, td {
+            border: 1px solid #999;
+            padding: 8px;
+            font-size: 12px;
+          }
+          th { background: #eee; }
+          .total {
+            margin-top: 15px;
+            text-align: right;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <h2>Customer Due Summary</h2>
+        <p>
+          Period: ${dueStartDate || "Beginning"} -
+          ${dueEndDate || "Today"}
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>SL</th>
+              <th>Customer</th>
+              <th>Company</th>
+              <th>Mobile</th>
+              <th>Address</th>
+              <th>Opening Due</th>
+              <th>Closing Due</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="total">
+          Total Due Customers: ${dueSummary.totalDueCustomers || 0}
+          <br />
+          Total Customer Due: ৳ ${formatMoney(dueSummary.totalDueAmount)}
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+            window.onafterprint = function() {
+              window.close();
+            };
+          };
+        </script>
+      </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  };
+
+  return (
+    <div className="panel" style={{ padding: 22 }}>
+      <div style={pageHeaderStyle}>
+        <div>
+          <h2 style={{ margin: 0 }}>Customer Due Summary</h2>
+          <p style={{ color: "#7b8494", margin: "6px 0 0" }}>
+            Customers with outstanding balance
+          </p>
+        </div>
+
+        <button
+          className="secondary-button"
+          onClick={handlePrint}
+        >
+          <FileText size={18} /> Print
+        </button>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 14,
+          margin: "20px 0",
+        }}
+      >
+        <div style={{
+          background: "#eff6ff",
+          padding: 18,
+          borderRadius: 10,
+          border: "1px solid #bfdbfe",
+        }}>
+          <p style={{ margin: 0, color: "#1d4ed8" }}>
+            Total Due Customers
+          </p>
+          <h2 style={{ margin: "8px 0 0", color: "#1e40af" }}>
+            {dueSummary.totalDueCustomers || 0}
+          </h2>
+        </div>
+
+        <div style={{
+          background: "#fef2f2",
+          padding: 18,
+          borderRadius: 10,
+          border: "1px solid #fecaca",
+        }}>
+          <p style={{ margin: 0, color: "#dc2626" }}>
+            Total Customer Due
+          </p>
+          <h2 style={{ margin: "8px 0 0", color: "#b91c1c" }}>
+            ৳ {formatMoney(dueSummary.totalDueAmount)}
+          </h2>
+        </div>
+      </div>
+
+      {/* FILTERS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 12,
+          margin: "20px 0",
+          alignItems: "end",
+        }}
+      >
+        <div>
+          <label>Start Date</label>
+          <input
+            type="date"
+            style={inputStyle}
+            value={dueStartDate}
+            onChange={(e) => setDueStartDate(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label>End Date</label>
+          <input
+            type="date"
+            style={inputStyle}
+            value={dueEndDate}
+            onChange={(e) => setDueEndDate(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label>Customer Name / Mobile</label>
+          <input
+            style={inputStyle}
+            placeholder="Search customer..."
+            value={dueCustomerSearch}
+            onChange={(e) => setDueCustomerSearch(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label>Customer Address</label>
+          <input
+            style={inputStyle}
+            placeholder="Search address..."
+            value={dueCustomerAddress}
+            onChange={(e) => setDueCustomerAddress(e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="primary-button"
+            onClick={handleSearch}
+          >
+            Search
+          </button>
+
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setDueStartDate("");
+              setDueEndDate("");
+              setDueCustomerSearch("");
+              setDueCustomerAddress("");
+
+              loadCustomerDueSummary({});
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {/* CUSTOMER TABLE */}
+      {dueSummaryLoading ? (
+        <p>Loading customer due summary...</p>
+      ) : (
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>CUSTOMER NAME</th>
+                <th>COMPANY</th>
+                <th>MOBILE</th>
+                <th>ADDRESS</th>
+                <th>OPENING DUE</th>
+                <th>CURRENT DUE</th>
+                <th>POCKET LIST</th>
+                <th>PAYMENT</th>
+           
+              </tr>
+            </thead>
+
+            <tbody>
+              {dueSummaryCustomers.map((c) => (
+                <tr key={c._id}>
+                  <td>
+                    <strong>{c.customerName}</strong>
+                  </td>
+
+                  <td>{c.companyName || "-"}</td>
+                  <td>{c.mobile || "-"}</td>
+                  <td>{c.address || "-"}</td>
+
+                  <td>
+                    ৳ {formatMoney(c.openingDueAtStart)}
+                  </td>
+
+                  <td>
+                    <strong style={{ color: "#dc2626" }}>
+                      ৳ {formatMoney(c.currentBalance)}
+                    </strong>
+                  </td>
+
+                  <td>
+                    <button
+                      className="secondary-button"
+                      onClick={() => loadCustomerLedger(c)}
+                      style={{ padding: "7px 12px", fontSize: 12 }}
+                    >
+                      Ladger
+                    </button>
+                  </td>
+
+                  <td>
+                    <button
+                      className="primary-button"
+                      onClick={() => openCustomerPayment(c)}
+                      style={{ padding: "7px 12px", fontSize: 12 }}
+                    >
+                      Payment
+                    </button>
+                  </td>
+
+                  
+                </tr>
+              ))}
+
+              {dueSummaryCustomers.length === 0 && (
+                <tr>
+                  <td
+                    colSpan="8"
+                    style={{ textAlign: "center", padding: 25 }}
+                  >
+                    No customers with outstanding due found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 function renderProductModal() {
   return (
     <div style={modalOverlayStyle}>
@@ -18015,20 +20943,20 @@ async function handleAdminLogout() {
                 ? "active"
                 : ""
             }`}
-            onClick={() => {
-              if (hasChildren) {
-                setExpandedMenus((prev) => ({
-                  ...prev,
-                  [item.label]: !prev[item.label],
-                }));
-                return;
-              }
+           onClick={() => {
+  if (hasChildren) {
+    setExpandedMenus((prev) =>
+      prev[item.label] ? {} : { [item.label]: true }
+    );
+    return;
+  }
 
-              setActivePage(item.label);
-              setSearchText("");
-              setShowForm(false);
-              setSidebarOpen(false);
-            }}
+  setExpandedMenus({});
+  setActivePage(item.label);
+  setSearchText("");
+  setShowForm(false);
+  setSidebarOpen(false);
+}}
           >
             <Icon size={19} />
 
@@ -18052,41 +20980,43 @@ async function handleAdminLogout() {
             )}
           </button>
 
-          {hasChildren && isExpanded && (
-            <div
-              style={{
-                marginLeft: 18,
-                paddingLeft: 12,
-                borderLeft: "2px solid var(--border-color, #e5e7eb)",
-              }}
-            >
-              {item.children.map((child) => {
-                const ChildIcon = child.icon;
+      {hasChildren && (
+  <div
+    className={`submenu-container ${isExpanded ? "submenu-open" : ""}`}
+    style={{
+      marginLeft: 18,
+      paddingLeft: 12,
+      borderLeft: "2px solid var(--border-color, #e5e7eb)",
+    }}
+  >
+    {isExpanded && item.children.map((child) => {
+      const ChildIcon = child.icon;
 
-                return (
-                  <button
-                    key={child.label}
-                    className={`nav-item ${
-                      activePage === child.label ? "active" : ""
-                    }`}
-                    style={{
-                      fontSize: 13,
-                      paddingLeft: 10,
-                    }}
-                    onClick={() => {
-                      setActivePage(child.label);
-                      setSearchText("");
-                      setShowForm(false);
-                      setSidebarOpen(false);
-                    }}
-                  >
-                    <ChildIcon size={17} />
-                    <span>{child.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+      return (
+        <button
+          key={child.label}
+          className={`nav-item ${
+            activePage === child.label ? "active" : ""
+          }`}
+          style={{
+            fontSize: 13,
+            paddingLeft: 10,
+          }}
+          onClick={() => {
+            setExpandedMenus({});
+            setActivePage(child.label);
+            setSearchText("");
+            setShowForm(false);
+            setSidebarOpen(false);
+          }}
+        >
+          <ChildIcon size={17} />
+          <span>{child.label}</span>
+        </button>
+      );
+    })}
+  </div>
+)}
         </div>
       );
     })}
@@ -18147,39 +21077,102 @@ async function handleAdminLogout() {
 
        
 
-<div className="dashboard-content">
+
+<div key={activePage} className="dashboard-content page-transition">
   {activePage === "Dashboard" && renderDashboard()}
+  {activePage === "Inventory Dashboard" && renderInventoryDashboard()}
   {activePage === "Products" && renderProducts()}
   {activePage === "Suppliers" && renderSuppliers()}
-  {activePage === "Customers" && renderCustomers()}
+  {activePage === "Customer List" && renderCustomers()}
+  {activePage === "Customer Due Summary" &&
+    renderCustomerDueSummary()}
   {activePage === "Supplier Report" && renderAllSupplierReport()}
   {activePage === "All Customer Report" && renderAllCustomerReport()}
   {activePage === "Categories" && renderCategories()}
-{[
-  "Sales",
-  "Sales Dashboard",
-  "New Sales Invoice",
-  "Sales Invoice History",
-].includes(activePage) && renderSales()}
+
+  {[
+    "Sales",
+    "Sales Dashboard",
+    "New Sales Invoice",
+    "Sales Invoice History",
+    "Sales Return",
+    "Sales Collection",
+    "Customer Payment",
+
+    "Daily Sales Summary",
+    "Weekly Sales Summary",
+    "Monthly Sales Summary",
+    "Yearly Sales Summary",
+
+    "Lot Wise Sales",
+    "Product Wise Sales",
+    "Category Wise Sales",
+    "Supplier Wise Sales",
+    "OWN Profit / Loss",
+  ].includes(activePage) && renderSales()}
+
   {activePage === "Purchases" && renderPurchases()}
-  {activePage === "Commission Management" && renderCommissionManagement()}
- {activePage === "Commission History" && renderCommissionHistory()}
-{activePage === "Commission Reports" && renderCommissionReports()}
+  {activePage === "Stock In" && renderPurchases()}
+{/* INVENTORY MODULE */}
+{[
+  "Inventory Dashboard",
+  "Stock In",
+  "Stock Out",
+  "Stock Transfer",
+  "Stock Adjustment",
+  "Stock Return",
+  "Stock Transaction History",
+  "Current Stock Report",
+  "Warehouse Wise Stock",
+  "Stock Movement Report",
+  "Low Stock Report",
+  "Stock Valuation",
+].includes(activePage) && (
+  <div className="panel" style={{ padding: 30 }}>
+    <h2>{activePage}</h2>
+    <p>Inventory Module তৈরি করা হচ্ছে।</p>
+  </div>
+)}
+
+  {activePage === "Commission Management" &&
+    renderCommissionManagement()}
+  {activePage === "Commission History" && renderCommissionHistory()}
+  {activePage === "Commission Reports" && renderCommissionReports()}
   {activePage === "Activity Log" && renderActivityLog()}
+
   {![
     "Dashboard",
-    "New Sales Invoice",
     "Products",
     "Suppliers",
-     "Customers",
+    "Customer List",
+    "Customer Due Summary",
     "Supplier Report",
     "All Customer Report",
     "Categories",
     "Purchases",
-   "Commission Management",
-     "Commission History",
+    "Commission Management",
+    "Commission History",
     "Commission Reports",
     "Activity Log",
+
+    "Sales",
+    "Sales Dashboard",
+    "New Sales Invoice",
+    "Sales Invoice History",
+    "Sales Return",
+    "Sales Collection",
+    "Customer Payment",
+
+    "Daily Sales Summary",
+    "Weekly Sales Summary",
+    "Monthly Sales Summary",
+    "Yearly Sales Summary",
+
+    "Lot Wise Sales",
+    "Product Wise Sales",
+    "Category Wise Sales",
+    "Supplier Wise Sales",
+    "OWN Profit / Loss",
   ].includes(activePage) && (
     <div className="panel" style={{ padding: 30 }}>
       <h2>{activePage}</h2>
@@ -18194,21 +21187,32 @@ async function handleAdminLogout() {
 </div>
 
 
+
       </main>
 
       {showForm && activePage === "Products" && renderProductModal()}
      
       {showForm && activePage === "Suppliers" && renderSupplierModal()}
-      {showCustomerForm && activePage === "Customers" && renderCustomerModal()}
+{showCustomerForm &&
+  (activePage === "Customer List" ||
+    activePage === "Customer Due Summary") &&
+  renderCustomerModal()}
       {showPaymentForm && renderSupplierPaymentModal()}
-      {showCustomerPaymentForm &&
-  activePage === "Customers" &&
+{showCustomerPaymentForm &&
+  (activePage === "Customer List" ||
+    activePage === "Customer Due Summary") &&
   renderCustomerPaymentModal()}
 {showSupplierLedger && renderSupplierLedgerModal()}
 {showCustomerLedger && renderCustomerLedgerModal()}
 {showPaymentEdit && renderPaymentEditModal()}
 {showPaymentVoid && renderPaymentVoidModal()}
 
+
+{showCustomerPaymentEdit &&
+  renderCustomerPaymentEditModal()}
+
+{showCustomerPaymentVoid &&
+  renderCustomerPaymentVoidModal()}
 {showReturnForm && renderPurchaseReturnModal()}
 {showLotEditForm && renderLotEditModal()}
 {showEditHistory && renderEditHistoryModal()}

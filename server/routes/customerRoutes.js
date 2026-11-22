@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import Customer from "../models/Customer.js";
 import CustomerLedger from "../models/CustomerLedger.js";
 import ActivityLog from "../models/ActivityLog.js";
+import requireAdmin from "../middleware/requireAdmin.js";
 
 const router = express.Router();
 
@@ -483,6 +484,206 @@ match.isVoided = { $ne: true };
   }
 });
 
+
+
+// ========================================
+// CUSTOMER DUE SUMMARY
+// ========================================
+
+router.get("/due-summary", async (req, res) => {
+  try {
+    const { startDate, endDate, search, address } = req.query;
+
+    const end = endDate ? new Date(endDate) : new Date();
+
+    if (Number.isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid end date",
+      });
+    }
+
+    end.setHours(23, 59, 59, 999);
+
+    let start = null;
+
+    if (startDate) {
+      start = new Date(startDate);
+
+      if (Number.isNaN(start.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid start date",
+        });
+      }
+
+      start.setHours(0, 0, 0, 0);
+
+      if (start > end) {
+        return res.status(400).json({
+          success: false,
+          message: "Start date cannot be after end date",
+        });
+      }
+    }
+
+    const customerFilter = {
+      isActive: { $ne: false },
+    };
+
+    if (search && search.trim()) {
+      const escapedSearch = search.trim().replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+
+      const regex = new RegExp(escapedSearch, "i");
+
+      customerFilter.$or = [
+        { customerName: regex },
+        { companyName: regex },
+        { mobile: regex },
+      ];
+    }
+
+    if (address && address.trim()) {
+      const escapedAddress = address.trim().replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+
+      customerFilter.address = new RegExp(
+        escapedAddress,
+        "i"
+      );
+    }
+
+    const customers = await Customer.find(customerFilter)
+      .sort({ customerName: 1 })
+      .lean();
+
+    const ledgerSummary = await CustomerLedger.aggregate([
+      {
+        $match: {
+          transactionDate: { $lte: end },
+          isVoided: { $ne: true },
+        },
+      },
+      {
+        $group: {
+          _id: "$customerId",
+
+          totalDebit: {
+            $sum: { $ifNull: ["$debit", 0] },
+          },
+
+          totalCredit: {
+            $sum: { $ifNull: ["$credit", 0] },
+          },
+
+          debitBeforeStart: {
+            $sum: {
+              $cond: [
+                start
+                  ? { $lt: ["$transactionDate", start] }
+                  : false,
+                { $ifNull: ["$debit", 0] },
+                0,
+              ],
+            },
+          },
+
+          creditBeforeStart: {
+            $sum: {
+              $cond: [
+                start
+                  ? { $lt: ["$transactionDate", start] }
+                  : false,
+                { $ifNull: ["$credit", 0] },
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const summaryMap = new Map();
+
+    ledgerSummary.forEach((item) => {
+      summaryMap.set(String(item._id), item);
+    });
+
+    const dueCustomers = customers
+      .map((customer) => {
+        const summary = summaryMap.get(
+          String(customer._id)
+        );
+
+        const openingBalance = Number(
+          customer.openingBalance || 0
+        );
+
+        const totalDebit = Number(
+          summary?.totalDebit || 0
+        );
+
+        const totalCredit = Number(
+          summary?.totalCredit || 0
+        );
+
+        const currentBalance =
+          openingBalance + totalDebit - totalCredit;
+
+        const openingDueAtStart = start
+          ? openingBalance +
+            Number(summary?.debitBeforeStart || 0) -
+            Number(summary?.creditBeforeStart || 0)
+          : openingBalance;
+
+        return {
+          ...customer,
+          totalDebit,
+          totalCredit,
+          openingDueAtStart: Number(
+            openingDueAtStart.toFixed(2)
+          ),
+          currentBalance: Number(
+            currentBalance.toFixed(2)
+          ),
+        };
+      })
+      .filter((customer) => customer.currentBalance > 0);
+
+    const totalDueAmount = dueCustomers.reduce(
+      (total, customer) =>
+        total + customer.currentBalance,
+      0
+    );
+
+    res.json({
+      success: true,
+      customers: dueCustomers,
+      summary: {
+        totalDueCustomers: dueCustomers.length,
+        totalDueAmount: Number(
+          totalDueAmount.toFixed(2)
+        ),
+      },
+    });
+  } catch (error) {
+    console.error("Customer Due Summary Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message:
+        error.message || "Failed to load customer due summary",
+    });
+  }
+});
+
+
+
 // ========================================
 // GET SINGLE CUSTOMER
 // ========================================
@@ -812,7 +1013,7 @@ router.post("/:id/payments", async (req, res) => {
 // EDIT CUSTOMER PAYMENT
 // ========================================
 
-router.put("/:id/payments/:paymentId", async (req, res) => {
+router.put("/:id/payments/:paymentId", requireAdmin, async (req, res) => {
   try {
     const { id, paymentId } = req.params;
 
@@ -927,17 +1128,67 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
       ...updateData,
     };
 
-    payment.correctionHistory.push({
-      correctedAt: new Date(),
-      reason: reason.trim(),
-      oldValues,
-      newValues,
-    });
+  payment.correctionHistory.push({
+  correctedAt: new Date(),
+
+  correctedBy: {
+    adminId: req.admin.adminId,
+    name: req.admin.name,
+    username: req.admin.username,
+  },
+
+  reason: reason.trim(),
+  oldValues,
+  newValues,
+});
 
     Object.assign(payment, updateData);
+await ActivityLog.create({
+  adminId: req.admin.adminId,
+  adminName: req.admin.name,
+  adminUsername: req.admin.username,
 
+  action: "EDIT",
+  module: "CUSTOMER_PAYMENT",
+
+  description: `Customer payment corrected. Reason: ${reason.trim()}`,
+
+  targetId: payment._id,
+  targetName: payment.customerId.toString(),
+
+  metadata: {
+    customerId: id,
+    paymentId: payment._id,
+    oldValues,
+    newValues,
+    reason: reason.trim(),
+  },
+});
     await payment.save();
+await ActivityLog.create({
+  adminId: req.admin.adminId,
+  adminName: req.admin.name,
+  adminUsername: req.admin.username,
 
+  action: "VOID",
+  module: "CUSTOMER_PAYMENT",
+
+  description: `Customer payment voided. Reason: ${reason.trim()}`,
+
+  targetId: payment._id,
+  targetName: id,
+
+  metadata: {
+    customerId: id,
+    paymentId: payment._id,
+    amount: payment.amount,
+    paymentMethod: payment.paymentMethod,
+    transactionId: payment.transactionId,
+    reference: payment.reference,
+    transactionDate: payment.transactionDate,
+    reason: reason.trim(),
+  },
+});
     await recalculateCustomerLedgerBalances(id);
 
     res.json({
@@ -959,7 +1210,7 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
 // VOID CUSTOMER PAYMENT
 // ========================================
 
-router.patch("/:id/payments/:paymentId/void", async (req, res) => {
+router.patch("/:id/payments/:paymentId/void", requireAdmin, async (req, res) => {
   try {
     const { id, paymentId } = req.params;
     const { reason } = req.body;
@@ -1001,9 +1252,16 @@ router.patch("/:id/payments/:paymentId/void", async (req, res) => {
       });
     }
 
-    payment.isVoided = true;
-    payment.voidedAt = new Date();
-    payment.voidReason = reason.trim();
+  payment.isVoided = true;
+payment.voidedAt = new Date();
+
+payment.voidedBy = {
+  adminId: req.admin.adminId,
+  name: req.admin.name,
+  username: req.admin.username,
+};
+
+payment.voidReason = reason.trim();
 
     await payment.save();
 
@@ -1270,11 +1528,10 @@ router.get("/:id/ledger", async (req, res) => {
       });
     }
 
-    // সব ধরনের Voided Transaction বাদ
-    const filter = {
-      customerId: id,
-      isVoided: { $ne: true },
-    };
+ // সব Transaction দেখাবে, including VOIDED Payment
+const filter = {
+  customerId: id,
+};
 
     if (type) {
       filter.type = type;

@@ -23,7 +23,22 @@ const salesReturnItemSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+categoryName: {
+  type: String,
+  default: "",
+  trim: true,
+},
+supplierId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Supplier",
+  default: null,
+},
 
+supplierName: {
+  type: String,
+  default: "",
+  trim: true,
+},
     lotId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Lot",

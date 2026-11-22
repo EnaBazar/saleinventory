@@ -16,6 +16,11 @@ const saleItemSchema = new mongoose.Schema(
       trim: true,
     },
 
+    categoryName: {
+  type: String,
+  default: "",
+  trim: true,
+},
     lotId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Lot",

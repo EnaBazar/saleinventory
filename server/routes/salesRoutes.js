@@ -427,10 +427,10 @@ router.post("/", async (req, res) => {
           : 0;
 
   preparedItems.push({
-        productId: product._id,
-        productName: product.productName,
-
-        lotId: lot._id,
+      productId: product._id,
+productName: product.productName,
+categoryName: product.category || "",
+lotId: lot._id,
         lotCode: lot.lotCode,
 
         supplierId: lot.supplierId?._id || null,
@@ -747,318 +747,453 @@ router.post("/", async (req, res) => {
 // GET /api/sales/dashboard/summary
 // ========================================
 
+
 router.get("/dashboard/summary", async (req, res) => {
   try {
-    const { period = "7" } = req.query;
+    const { period = "7", from, to } = req.query;
 
     const trendDays = Number(period) === 30 ? 30 : 7;
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const BD_OFFSET = 6 * 60 * 60 * 1000;
+
+    const num = (value) => Number(value || 0);
 
     // ========================================
-    // BANGLADESH DATE RANGE
+    // BANGLADESH DATE HELPERS
     // ========================================
 
-    const today = new Date(
-      Date.now() + 6 * 60 * 60 * 1000
-    )
-      .toISOString()
-      .slice(0, 10);
+    const getBangladeshDate = (date = new Date()) =>
+      new Date(date.getTime() + BD_OFFSET)
+        .toISOString()
+        .slice(0, 10);
+
+    const isValidDate = (value) => {
+      if (
+        typeof value !== "string" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value)
+      ) {
+        return false;
+      }
+
+      const [year, month, day] = value.split("-").map(Number);
+      const check = new Date(Date.UTC(year, month - 1, day));
+
+      return (
+        check.getUTCFullYear() === year &&
+        check.getUTCMonth() === month - 1 &&
+        check.getUTCDate() === day
+      );
+    };
+
+    const today = getBangladeshDate();
+
+    const fromDate = from || today;
+    const toDate = to || today;
+
+    if (!isValidDate(fromDate) || !isValidDate(toDate)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date range",
+      });
+    }
+
+    if (fromDate > toDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Start date cannot be after end date",
+      });
+    }
+
+    const rangeStart = new Date(
+      `${fromDate}T00:00:00.000+06:00`
+    );
+
+    const rangeEndExclusive = new Date(
+      new Date(`${toDate}T00:00:00.000+06:00`).getTime() +
+        DAY_MS
+    );
 
     const todayStart = new Date(
       `${today}T00:00:00.000+06:00`
     );
 
     const tomorrowStart = new Date(
-      todayStart.getTime() + 24 * 60 * 60 * 1000
+      todayStart.getTime() + DAY_MS
     );
 
     const trendStart = new Date(
-      todayStart.getTime() -
-        (trendDays - 1) * 24 * 60 * 60 * 1000
+      todayStart.getTime() - (trendDays - 1) * DAY_MS
     );
 
     // ========================================
-    // ALL COMPLETED SALES SUMMARY
+    // OWN SALE CALCULATION
     // ========================================
 
-    const salesSummaryResult = await Sale.aggregate([
-      {
-        $match: {
-          status: "COMPLETED",
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalInvoices: { $sum: 1 },
-          totalSales: { $sum: "$grandTotal" },
-          totalBags: { $sum: "$totalBags" },
-          totalWeightKg: { $sum: "$totalWeightKg" },
-        },
-      },
+    const calculateOwnSale = (sale) => {
+      const allItems = sale.items || [];
+
+      const ownItems = allItems.filter(
+        (item) => item.stockType === "OWN"
+      );
+
+      if (!ownItems.length) {
+        return null;
+      }
+
+      const totalProductValue = allItems.reduce(
+        (sum, item) => sum + num(item.productTotal),
+        0
+      );
+
+      const ownProductTotal = ownItems.reduce(
+        (sum, item) => sum + num(item.productTotal),
+        0
+      );
+
+      const ownLabourTotal = ownItems.reduce(
+        (sum, item) => sum + num(item.labourTotal),
+        0
+      );
+
+      const ownCostTotal = ownItems.reduce(
+        (sum, item) => sum + num(item.costTotal),
+        0
+      );
+
+      const ownBags = ownItems.reduce(
+        (sum, item) => sum + num(item.bags),
+        0
+      );
+
+      const ownWeightKg = ownItems.reduce(
+        (sum, item) => sum + num(item.weightKg),
+        0
+      );
+
+      // OWN share of invoice-level other cost and discount
+      const ownRatio =
+        totalProductValue > 0
+          ? ownProductTotal / totalProductValue
+          : 0;
+
+      const ownOtherCost = num(sale.otherCost) * ownRatio;
+      const ownDiscount = num(sale.discount) * ownRatio;
+
+      const ownSales = ownProductTotal + ownLabourTotal;
+
+      const ownProfit =
+        ownSales -
+        ownCostTotal -
+        ownOtherCost -
+        ownDiscount;
+
+      // Allocate invoice payment proportionally to OWN invoice value
+      const ownInvoiceValue =
+        ownSales + ownOtherCost - ownDiscount;
+
+      const grandTotal = num(sale.grandTotal);
+
+      const paymentRatio =
+        grandTotal > 0
+          ? Math.min(1, Math.max(0, ownInvoiceValue / grandTotal))
+          : 0;
+
+      const ownPaid = num(sale.paidAmount) * paymentRatio;
+
+      const ownDue = Math.max(0, ownInvoiceValue - ownPaid);
+
+      return {
+        sales: ownSales,
+        productTotal: ownProductTotal,
+        labourTotal: ownLabourTotal,
+        costTotal: ownCostTotal,
+        otherCost: ownOtherCost,
+        discount: ownDiscount,
+        profit: ownProfit,
+        bags: ownBags,
+        weightKg: ownWeightKg,
+        paid: ownPaid,
+        due: ownDue,
+      };
+    };
+
+    // ========================================
+    // OWN SALES RETURN CALCULATION
+    // ========================================
+
+    const calculateOwnReturn = (returnDoc) => {
+      const allItems = returnDoc.items || [];
+
+      const ownItems = allItems.filter(
+        (item) => item.stockType === "OWN"
+      );
+
+      if (!ownItems.length) {
+        return null;
+      }
+
+      const allReturnAmount = allItems.reduce(
+        (sum, item) => sum + num(item.returnAmount),
+        0
+      );
+
+      const ownProductTotal = ownItems.reduce(
+        (sum, item) => sum + num(item.productTotal),
+        0
+      );
+
+      const ownLabourTotal = ownItems.reduce(
+        (sum, item) => sum + num(item.labourTotal),
+        0
+      );
+
+      const ownCostTotal = ownItems.reduce(
+        (sum, item) => sum + num(item.costTotal),
+        0
+      );
+
+      const ownBags = ownItems.reduce(
+        (sum, item) => sum + num(item.bags),
+        0
+      );
+
+      const ownWeightKg = ownItems.reduce(
+        (sum, item) => sum + num(item.weightKg),
+        0
+      );
+
+      const ownReturnAmount =
+        ownProductTotal + ownLabourTotal;
+
+      const ownRatio =
+        allReturnAmount > 0
+          ? ownReturnAmount / allReturnAmount
+          : 0;
+
+      return {
+        amount: ownReturnAmount,
+        costTotal: ownCostTotal,
+
+        // Return profit adjustment includes returned labour amount
+        profit: ownReturnAmount - ownCostTotal,
+
+        bags: ownBags,
+        weightKg: ownWeightKg,
+
+        // Customer ledger adjustment/refund allocated proportionally
+        amountAdjusted: num(returnDoc.amountAdjusted) * ownRatio,
+        refundAmount: num(returnDoc.refundAmount) * ownRatio,
+      };
+    };
+
+    // ========================================
+    // LOAD COMPLETED SALES AND RETURNS
+    // ========================================
+
+    const [sales, returns] = await Promise.all([
+      Sale.find({ status: "COMPLETED" })
+        .select(
+          "invoiceDate grandTotal paidAmount otherCost discount items"
+        )
+        .lean(),
+
+      SalesReturn.find({ status: "COMPLETED" })
+        .select(
+          "returnDate returnAmount amountAdjusted refundAmount items"
+        )
+        .lean(),
     ]);
 
-    const salesSummary = salesSummaryResult[0] || {};
-
-
-// ========================================
-// TODAY'S OWN SALE PROFIT
-// ========================================
-
-const todaySaleProfitResult = await Sale.aggregate([
-  {
-    $match: {
-      status: "COMPLETED",
-      invoiceDate: {
-        $gte: todayStart,
-        $lt: tomorrowStart,
-      },
-    },
-  },
-  {
-    $group: {
-      _id: null,
-      profit: { $sum: "$totalProfit" },
-    },
-  },
-]);
-
-const todaySaleProfit = todaySaleProfitResult[0] || {};
-
-
-
     // ========================================
-    // TODAY'S SALES SUMMARY
+    // ALL-TIME OWN SALES SUMMARY
     // ========================================
 
-    const todaySalesResult = await Sale.aggregate([
-      {
-        $match: {
-          status: "COMPLETED",
-          invoiceDate: {
-            $gte: todayStart,
-            $lt: tomorrowStart,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          invoices: { $sum: 1 },
-          amount: { $sum: "$grandTotal" },
-          bags: { $sum: "$totalBags" },
-          weightKg: { $sum: "$totalWeightKg" },
-        },
-      },
-    ]);
+    let totalInvoices = 0;
+    let totalSales = 0;
+    let totalBags = 0;
+    let totalWeightKg = 0;
+    let totalOwnSaleProfit = 0;
 
-    const todaySales = todaySalesResult[0] || {};
+    for (const sale of sales) {
+      const own = calculateOwnSale(sale);
 
+      if (!own) continue;
 
-// ========================================
-// ALL TIME OWN SALE PROFIT
-// ========================================
-
-const totalSaleProfitResult = await Sale.aggregate([
-  {
-    $match: {
-      status: "COMPLETED",
-    },
-  },
-  {
-    $group: {
-      _id: null,
-      profit: { $sum: "$totalProfit" },
-    },
-  },
-]);
-
-const totalSaleProfit = totalSaleProfitResult[0] || {};
+      totalInvoices++;
+      totalSales += own.sales;
+      totalBags += own.bags;
+      totalWeightKg += own.weightKg;
+      totalOwnSaleProfit += own.profit;
+    }
 
     // ========================================
-    // ALL COMPLETED SALES RETURNS
+    // ALL-TIME OWN RETURN SUMMARY
     // ========================================
 
-    const returnSummaryResult = await SalesReturn.aggregate([
-      {
-        $match: {
-          status: "COMPLETED",
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalReturns: { $sum: 1 },
-          returnAmount: { $sum: "$returnAmount" },
-          returnedBags: { $sum: "$totalBags" },
-          returnedWeightKg: { $sum: "$totalWeightKg" },
-          amountAdjusted: { $sum: "$amountAdjusted" },
-          refundAmount: { $sum: "$refundAmount" },
-        },
-      },
-    ]);
+    let totalReturns = 0;
+    let totalReturnAmount = 0;
+    let returnedBags = 0;
+    let returnedWeightKg = 0;
+    let totalOwnReturnProfit = 0;
+    let totalAmountAdjusted = 0;
+    let totalRefundAmount = 0;
 
-    const returnSummary = returnSummaryResult[0] || {};
+    for (const returnDoc of returns) {
+      const own = calculateOwnReturn(returnDoc);
 
+      if (!own) continue;
 
-// ========================================
-// TODAY'S OWN RETURN PROFIT
-// ========================================
-
-const todayReturnProfitResult = await SalesReturn.aggregate([
-  {
-    $match: {
-      status: "COMPLETED",
-      returnDate: {
-        $gte: todayStart,
-        $lt: tomorrowStart,
-      },
-    },
-  },
-  {
-    $group: {
-      _id: null,
-      profit: { $sum: "$profit" },
-    },
-  },
-]);
-
-const todayReturnProfit = todayReturnProfitResult[0] || {};
+      totalReturns++;
+      totalReturnAmount += own.amount;
+      returnedBags += own.bags;
+      returnedWeightKg += own.weightKg;
+      totalOwnReturnProfit += own.profit;
+      totalAmountAdjusted += own.amountAdjusted;
+      totalRefundAmount += own.refundAmount;
+    }
 
     // ========================================
-    // TODAY'S SALES RETURN
+    // SELECTED DATE RANGE OWN SALES
     // ========================================
 
-    const todayReturnResult = await SalesReturn.aggregate([
-      {
-        $match: {
-          status: "COMPLETED",
-          returnDate: {
-            $gte: todayStart,
-            $lt: tomorrowStart,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          amount: { $sum: "$returnAmount" },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+    let todayInvoices = 0;
+    let todaySales = 0;
+    let todayBags = 0;
+    let todayWeightKg = 0;
+    let todayOwnSaleProfit = 0;
+    let todaySaleDue = 0;
 
-    const todayReturn = todayReturnResult[0] || {};
+    for (const sale of sales) {
+      if (
+        !sale.invoiceDate ||
+        sale.invoiceDate < rangeStart ||
+        sale.invoiceDate >= rangeEndExclusive
+      ) {
+        continue;
+      }
 
+      const own = calculateOwnSale(sale);
 
-// ========================================
-// ALL TIME OWN RETURN PROFIT
-// ========================================
+      if (!own) continue;
 
-const totalReturnProfitResult = await SalesReturn.aggregate([
-  {
-    $match: {
-      status: "COMPLETED",
-    },
-  },
-  {
-    $group: {
-      _id: null,
-      profit: { $sum: "$profit" },
-    },
-  },
-]);
+      todayInvoices++;
+      todaySales += own.sales;
+      todayBags += own.bags;
+      todayWeightKg += own.weightKg;
+      todayOwnSaleProfit += own.profit;
+      todaySaleDue += own.due;
+    }
 
-const totalReturnProfit = totalReturnProfitResult[0] || {};
+    // ========================================
+    // SELECTED DATE RANGE OWN RETURNS
+    // ========================================
+
+    let todayReturnAmount = 0;
+    let todayOwnReturnProfit = 0;
+    let todayReturnCount = 0;
+
+    for (const returnDoc of returns) {
+      if (
+        !returnDoc.returnDate ||
+        returnDoc.returnDate < rangeStart ||
+        returnDoc.returnDate >= rangeEndExclusive
+      ) {
+        continue;
+      }
+
+      const own = calculateOwnReturn(returnDoc);
+
+      if (!own) continue;
+
+      todayReturnCount++;
+      todayReturnAmount += own.amount;
+      todayOwnReturnProfit += own.profit;
+    }
 
     // ========================================
     // CUSTOMER PAYMENT SUMMARY
-    // Only actual PAYMENT ledger entries
+    // Customer payments remain separate from OWN sales.
     // ========================================
 
-    const paymentSummaryResult = await CustomerLedger.aggregate([
-      {
-        $match: {
-          type: "PAYMENT",
-          isVoided: { $ne: true },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalPaid: { $sum: "$credit" },
-        },
-      },
-    ]);
+    const [paymentSummaryResult, todayPaymentResult] =
+      await Promise.all([
+        CustomerLedger.aggregate([
+          {
+            $match: {
+              type: "PAYMENT",
+              isVoided: { $ne: true },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalPaid: { $sum: "$credit" },
+            },
+          },
+        ]),
+
+        CustomerLedger.aggregate([
+          {
+            $match: {
+              type: "PAYMENT",
+              isVoided: { $ne: true },
+              transactionDate: {
+                $gte: rangeStart,
+                $lt: rangeEndExclusive,
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalPaid: { $sum: "$credit" },
+            },
+          },
+        ]),
+      ]);
 
     const paymentSummary = paymentSummaryResult[0] || {};
-
-    // ========================================
-    // TODAY'S CUSTOMER PAYMENTS
-    // ========================================
-
-    const todayPaymentResult = await CustomerLedger.aggregate([
-      {
-        $match: {
-          type: "PAYMENT",
-          isVoided: { $ne: true },
-          transactionDate: {
-            $gte: todayStart,
-            $lt: tomorrowStart,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalPaid: { $sum: "$credit" },
-        },
-      },
-    ]);
-
     const todayPayment = todayPaymentResult[0] || {};
 
     // ========================================
     // CURRENT CUSTOMER DUE
-    // Opening Balance + Ledger Debit - Credit
     // ========================================
 
-    const openingBalanceResult = await Customer.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalOpeningBalance: {
-            $sum: "$openingBalance",
+    const [openingBalanceResult, ledgerBalanceResult] =
+      await Promise.all([
+        Customer.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalOpeningBalance: {
+                $sum: "$openingBalance",
+              },
+            },
           },
-        },
-      },
-    ]);
+        ]),
 
-    const ledgerBalanceResult = await CustomerLedger.aggregate([
-      {
-        $match: {
-          isVoided: { $ne: true },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalDebit: { $sum: "$debit" },
-          totalCredit: { $sum: "$credit" },
-        },
-      },
-    ]);
+        CustomerLedger.aggregate([
+          {
+            $match: {
+              isVoided: { $ne: true },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalDebit: { $sum: "$debit" },
+              totalCredit: { $sum: "$credit" },
+            },
+          },
+        ]),
+      ]);
 
-    const totalOpeningBalance = Number(
-      openingBalanceResult[0]?.totalOpeningBalance || 0
+    const totalOpeningBalance = num(
+      openingBalanceResult[0]?.totalOpeningBalance
     );
 
-    const totalDebit = Number(
-      ledgerBalanceResult[0]?.totalDebit || 0
-    );
-
-    const totalCredit = Number(
-      ledgerBalanceResult[0]?.totalCredit || 0
-    );
+    const totalDebit = num(ledgerBalanceResult[0]?.totalDebit);
+    const totalCredit = num(ledgerBalanceResult[0]?.totalCredit);
 
     const currentCustomerDue = Number(
       (
@@ -1069,231 +1204,126 @@ const totalReturnProfit = totalReturnProfitResult[0] || {};
     );
 
     // ========================================
-    // SALES TREND
-    // ========================================
-
-    const salesTrendResult = await Sale.aggregate([
-      {
-        $match: {
-          status: "COMPLETED",
-          invoiceDate: {
-            $gte: trendStart,
-            $lt: tomorrowStart,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: "%Y-%m-%d",
-              date: "$invoiceDate",
-              timezone: "Asia/Dhaka",
-            },
-          },
-          sales: { $sum: "$grandTotal" },
-          invoices: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-    ]);
-
-    // ========================================
-    // RETURN TREND
-    // ========================================
-
-    const returnTrendResult = await SalesReturn.aggregate([
-      {
-        $match: {
-          status: "COMPLETED",
-          returnDate: {
-            $gte: trendStart,
-            $lt: tomorrowStart,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: "%Y-%m-%d",
-              date: "$returnDate",
-              timezone: "Asia/Dhaka",
-            },
-          },
-          returns: { $sum: "$returnAmount" },
-        },
-      },
-    ]);
-
-
-    // ========================================
-// OWN SALE PROFIT TREND
-// ========================================
-
-const saleProfitTrendResult = await Sale.aggregate([
-  {
-    $match: {
-      status: "COMPLETED",
-      invoiceDate: {
-        $gte: trendStart,
-        $lt: tomorrowStart,
-      },
-    },
-  },
-  {
-    $group: {
-      _id: {
-        $dateToString: {
-          format: "%Y-%m-%d",
-          date: "$invoiceDate",
-          timezone: "Asia/Dhaka",
-        },
-      },
-      profit: { $sum: "$totalProfit" },
-    },
-  },
-]);
-
-// ========================================
-// OWN RETURN PROFIT TREND
-// ========================================
-
-const returnProfitTrendResult = await SalesReturn.aggregate([
-  {
-    $match: {
-      status: "COMPLETED",
-      returnDate: {
-        $gte: trendStart,
-        $lt: tomorrowStart,
-      },
-    },
-  },
-  {
-    $group: {
-      _id: {
-        $dateToString: {
-          format: "%Y-%m-%d",
-          date: "$returnDate",
-          timezone: "Asia/Dhaka",
-        },
-      },
-      profit: { $sum: "$profit" },
-    },
-  },
-]);
-    // ========================================
-    // COMBINE DAILY SALES AND RETURNS
+    // SALES AND RETURN TRENDS - OWN ONLY
     // ========================================
 
     const trendMap = new Map();
 
-for (const item of salesTrendResult) {
-  trendMap.set(item._id, {
-    date: item._id,
-    sales: Number(item.sales || 0),
-    returns: 0,
-    netSales: Number(item.sales || 0),
-    invoices: Number(item.invoices || 0),
+    for (const sale of sales) {
+      if (
+        !sale.invoiceDate ||
+        sale.invoiceDate < trendStart ||
+        sale.invoiceDate >= tomorrowStart
+      ) {
+        continue;
+      }
 
-    saleProfit: 0,
-    returnProfit: 0,
-    ownProfit: 0,
-  });
-}
+      const own = calculateOwnSale(sale);
 
-   for (const item of returnTrendResult) {
-  const existing = trendMap.get(item._id) || {
-    date: item._id,
-    sales: 0,
-    returns: 0,
-    netSales: 0,
-    invoices: 0,
-    saleProfit: 0,
-    returnProfit: 0,
-    ownProfit: 0,
-  };
+      if (!own) continue;
 
-      existing.returns = Number(item.returns || 0);
+      const date = getBangladeshDate(sale.invoiceDate);
+
+      const existing = trendMap.get(date) || {
+        date,
+        sales: 0,
+        returns: 0,
+        netSales: 0,
+        invoices: 0,
+        saleProfit: 0,
+        returnProfit: 0,
+        ownProfit: 0,
+      };
+
+      existing.sales += own.sales;
+      existing.invoices++;
+      existing.saleProfit += own.profit;
 
       existing.netSales = Number(
         (existing.sales - existing.returns).toFixed(2)
       );
 
-      trendMap.set(item._id, existing);
+      existing.ownProfit = Number(
+        (existing.saleProfit - existing.returnProfit).toFixed(2)
+      );
+
+      trendMap.set(date, existing);
     }
-// ADD SALE PROFIT TO TREND
-for (const item of saleProfitTrendResult) {
-  const existing = trendMap.get(item._id) || {
-    date: item._id,
-    sales: 0,
-    returns: 0,
-    netSales: 0,
-    invoices: 0,
-    saleProfit: 0,
-    returnProfit: 0,
-    ownProfit: 0,
-  };
 
-  existing.saleProfit = Number(item.profit || 0);
+    for (const returnDoc of returns) {
+      if (
+        !returnDoc.returnDate ||
+        returnDoc.returnDate < trendStart ||
+        returnDoc.returnDate >= tomorrowStart
+      ) {
+        continue;
+      }
 
-  existing.ownProfit = Number(
-    (
-      existing.saleProfit -
-      existing.returnProfit
-    ).toFixed(2)
-  );
+      const own = calculateOwnReturn(returnDoc);
 
-  trendMap.set(item._id, existing);
-}
+      if (!own) continue;
 
-// ADD RETURN PROFIT TO TREND
-for (const item of returnProfitTrendResult) {
-  const existing = trendMap.get(item._id) || {
-    date: item._id,
-    sales: 0,
-    returns: 0,
-    netSales: 0,
-    invoices: 0,
-    saleProfit: 0,
-    returnProfit: 0,
-    ownProfit: 0,
-  };
+      const date = getBangladeshDate(returnDoc.returnDate);
 
-  existing.returnProfit = Number(item.profit || 0);
+      const existing = trendMap.get(date) || {
+        date,
+        sales: 0,
+        returns: 0,
+        netSales: 0,
+        invoices: 0,
+        saleProfit: 0,
+        returnProfit: 0,
+        ownProfit: 0,
+      };
 
-  existing.ownProfit = Number(
-    (
-      existing.saleProfit -
-      existing.returnProfit
-    ).toFixed(2)
-  );
+      existing.returns += own.amount;
+      existing.returnProfit += own.profit;
 
-  trendMap.set(item._id, existing);
-}
-    // Fill missing dates with zero
+      existing.netSales = Number(
+        (existing.sales - existing.returns).toFixed(2)
+      );
+
+      existing.ownProfit = Number(
+        (existing.saleProfit - existing.returnProfit).toFixed(2)
+      );
+
+      trendMap.set(date, existing);
+    }
+
+    // ========================================
+    // FILL MISSING TREND DATES
+    // ========================================
+
     const salesTrend = [];
 
     for (let i = 0; i < trendDays; i++) {
-      const date = new Date(
-        trendStart.getTime() + i * 24 * 60 * 60 * 1000
-      )
-        .toISOString()
-        .slice(0, 10);
+      const date = getBangladeshDate(
+        new Date(trendStart.getTime() + i * DAY_MS)
+      );
+
+      const item = trendMap.get(date);
 
       salesTrend.push(
-        trendMap.get(date) || {
-  date,
-  sales: 0,
-  returns: 0,
-  netSales: 0,
-  invoices: 0,
-  saleProfit: 0,
-  returnProfit: 0,
-  ownProfit: 0,
-}
+        item
+          ? {
+              ...item,
+              sales: Number(item.sales.toFixed(2)),
+              returns: Number(item.returns.toFixed(2)),
+              netSales: Number(item.netSales.toFixed(2)),
+              saleProfit: Number(item.saleProfit.toFixed(2)),
+              returnProfit: Number(item.returnProfit.toFixed(2)),
+              ownProfit: Number(item.ownProfit.toFixed(2)),
+            }
+          : {
+              date,
+              sales: 0,
+              returns: 0,
+              netSales: 0,
+              invoices: 0,
+              saleProfit: 0,
+              returnProfit: 0,
+              ownProfit: 0,
+            }
       );
     }
 
@@ -1301,169 +1331,108 @@ for (const item of returnProfitTrendResult) {
     // FINAL DASHBOARD RESPONSE
     // ========================================
 
-const totalSales = Number(
-  Number(salesSummary.totalSales || 0).toFixed(2)
-);
+    const money = (value) =>
+      Number(Number(value || 0).toFixed(2));
 
-const totalReturnAmount = Number(
-  Number(returnSummary.returnAmount || 0).toFixed(2)
-);
+    return res.json({
+      success: true,
 
-const totalOwnSaleProfit = Number(
-  Number(totalSaleProfit.profit || 0).toFixed(2)
-);
+      data: {
+        today: {
+          from: fromDate,
+          to: toDate,
 
-const totalOwnReturnProfit = Number(
-  Number(totalReturnProfit.profit || 0).toFixed(2)
-);
+          invoices: todayInvoices,
 
-const todayOwnSaleProfit = Number(
-  Number(todaySaleProfit.profit || 0).toFixed(2)
-);
+          sales: money(todaySales),
 
-const todayOwnReturnProfit = Number(
-  Number(todayReturnProfit.profit || 0).toFixed(2)
-);
+          returnAmount: money(todayReturnAmount),
 
-return res.json({
-  success: true,
+          netSales: money(todaySales - todayReturnAmount),
 
-  data: {
-    today: {
-      invoices: Number(todaySales.invoices || 0),
+          saleProfit: money(todayOwnSaleProfit),
 
-      sales: Number(todaySales.amount || 0),
+          returnProfit: money(todayOwnReturnProfit),
 
-      returnAmount: Number(todayReturn.amount || 0),
+          ownProfit: money(
+            todayOwnSaleProfit - todayOwnReturnProfit
+          ),
 
-      netSales: Number(
-        (
-          Number(todaySales.amount || 0) -
-          Number(todayReturn.amount || 0)
-        ).toFixed(2)
-      ),
+          bags: money(todayBags),
 
-      // OWN SALE PROFIT
-      saleProfit: todayOwnSaleProfit,
+          weightKg: money(todayWeightKg),
 
-      // OWN SALE RETURN PROFIT
-      returnProfit: todayOwnReturnProfit,
+          paid: money(todayPayment.totalPaid),
 
-      // NET OWN PROFIT
-      ownProfit: Number(
-        (todayOwnSaleProfit - todayOwnReturnProfit).toFixed(2)
-      ),
+          saleDue: money(todaySaleDue),
+        },
 
-      bags: Number(todaySales.bags || 0),
+        overall: {
+          totalInvoices,
 
-      weightKg: Number(todaySales.weightKg || 0),
+          totalSales: money(totalSales),
 
-      paid: Number(todayPayment.totalPaid || 0),
-    },
+          totalReturnAmount: money(totalReturnAmount),
 
-    overall: {
-      totalInvoices: Number(
-        salesSummary.totalInvoices || 0
-      ),
+          netSales: money(totalSales - totalReturnAmount),
 
-      totalSales,
+          totalOwnSaleProfit: money(totalOwnSaleProfit),
 
-      totalReturnAmount,
+          totalOwnReturnProfit: money(totalOwnReturnProfit),
 
-      netSales: Number(
-        (totalSales - totalReturnAmount).toFixed(2)
-      ),
+          ownProfit: money(
+            totalOwnSaleProfit - totalOwnReturnProfit
+          ),
 
-      // TOTAL OWN SALE PROFIT
-      totalOwnSaleProfit,
+          totalBags: money(totalBags),
 
-      // TOTAL OWN SALE RETURN PROFIT
-      totalOwnReturnProfit,
+          returnedBags: money(returnedBags),
 
-      // NET OWN PROFIT
-      ownProfit: Number(
-        (totalOwnSaleProfit - totalOwnReturnProfit).toFixed(2)
-      ),
+          netBags: money(totalBags - returnedBags),
 
-      totalBags: Number(
-        salesSummary.totalBags || 0
-      ),
+          totalWeightKg: money(totalWeightKg),
 
-      returnedBags: Number(
-        returnSummary.returnedBags || 0
-      ),
+          returnedWeightKg: money(returnedWeightKg),
 
-      netBags: Number(
-        (
-          Number(salesSummary.totalBags || 0) -
-          Number(returnSummary.returnedBags || 0)
-        ).toFixed(2)
-      ),
+          netWeightKg: money(totalWeightKg - returnedWeightKg),
 
-      totalWeightKg: Number(
-        salesSummary.totalWeightKg || 0
-      ),
+          totalPaid: money(paymentSummary.totalPaid),
 
-      returnedWeightKg: Number(
-        returnSummary.returnedWeightKg || 0
-      ),
+          currentDue: currentCustomerDue,
+        },
 
-      netWeightKg: Number(
-        (
-          Number(salesSummary.totalWeightKg || 0) -
-          Number(returnSummary.returnedWeightKg || 0)
-        ).toFixed(2)
-      ),
+        returns: {
+          totalReturns,
 
-      totalPaid: Number(
-        paymentSummary.totalPaid || 0
-      ),
+          returnAmount: money(totalReturnAmount),
 
-      currentDue: currentCustomerDue,
-    },
+          ownReturnProfit: money(totalOwnReturnProfit),
 
-    returns: {
-      totalReturns: Number(
-        returnSummary.totalReturns || 0
-      ),
+          amountAdjusted: money(totalAmountAdjusted),
 
-      returnAmount: totalReturnAmount,
+          refundAmount: money(totalRefundAmount),
 
-      // TOTAL OWN RETURN PROFIT
-      ownReturnProfit: totalOwnReturnProfit,
+          returnedBags: money(returnedBags),
 
-      amountAdjusted: Number(
-        returnSummary.amountAdjusted || 0
-      ),
+          returnedWeightKg: money(returnedWeightKg),
+        },
 
-      refundAmount: Number(
-        returnSummary.refundAmount || 0
-      ),
+        salesTrend,
 
-      returnedBags: Number(
-        returnSummary.returnedBags || 0
-      ),
-
-      returnedWeightKg: Number(
-        returnSummary.returnedWeightKg || 0
-      ),
-    },
-
-    salesTrend,
-
-    trendDays,
-  },
-});
-
+        trendDays,
+      },
+    });
   } catch (error) {
     console.error("Sales Dashboard Summary Error:", error);
 
     return res.status(500).json({
       success: false,
       message: "Failed to load sales dashboard summary",
+      error: error.message,
     });
   }
 });
+
 
 
 // ========================================
@@ -1651,6 +1620,225 @@ if (from || to) {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch sales invoices",
+    });
+  }
+});
+
+
+
+
+
+
+// ========================================
+// SALES COLLECTION - RECEIVE CUSTOMER PAYMENT
+// ========================================
+
+router.post("/collections", async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    const {
+      customerId,
+      amount,
+      paymentMethod,
+      transactionId,
+      reference,
+      description,
+      transactionDate,
+    } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customer",
+      });
+    }
+
+    const paymentAmount = Number(amount);
+
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid payment amount",
+      });
+    }
+
+    const allowedMethods = [
+      "CASH",
+      "BANK",
+      "BKASH",
+      "NAGAD",
+      "ROCKET",
+      "OTHER",
+    ];
+
+    if (!allowedMethods.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment method",
+      });
+    }
+
+    const paymentDate = transactionDate
+      ? new Date(transactionDate)
+      : new Date();
+
+    if (Number.isNaN(paymentDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid transaction date",
+      });
+    }
+
+    let savedCollection = null;
+    let currentDue = 0;
+
+    await session.withTransaction(async () => {
+      const customer = await Customer.findById(customerId).session(session);
+
+      if (!customer) {
+        throw new Error("Customer not found");
+      }
+
+      const ledgerEntries = await CustomerLedger.find({
+        customerId,
+        isVoided: { $ne: true },
+      }).session(session);
+
+      currentDue = Number(customer.openingBalance || 0);
+
+      for (const entry of ledgerEntries) {
+        currentDue +=
+          Number(entry.debit || 0) - Number(entry.credit || 0);
+      }
+
+      currentDue = Number(currentDue.toFixed(2));
+
+      if (paymentAmount > currentDue + 0.009) {
+        throw new Error(
+          `Payment exceeds customer due. Current due: ${currentDue}`
+        );
+      }
+
+      const created = await CustomerLedger.create(
+        [
+          {
+            customerId,
+            type: "PAYMENT",
+            amount: paymentAmount,
+            debit: 0,
+            credit: paymentAmount,
+            saleId: null,
+            paymentMethod,
+            transactionId: transactionId || "",
+            reference: reference || "",
+            description: description || "",
+            transactionDate: paymentDate,
+          },
+        ],
+        { session }
+      );
+
+      savedCollection = created[0];
+
+      currentDue = await recalculateCustomerLedgerBalances(
+        customerId,
+        session
+      );
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Customer payment collected successfully",
+      data: {
+        collection: savedCollection,
+        currentDue,
+      },
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to collect payment",
+    });
+  } finally {
+    await session.endSession();
+  }
+});
+
+
+// ========================================
+// SALES COLLECTION HISTORY
+// ========================================
+
+router.get("/collections", async (req, res) => {
+  try {
+    const {
+      customerId,
+      from,
+      to,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const filter = {
+      type: "PAYMENT",
+      saleId: null,
+      isVoided: { $ne: true },
+    };
+
+    if (customerId) {
+      if (!mongoose.Types.ObjectId.isValid(customerId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid customer",
+        });
+      }
+
+      filter.customerId = customerId;
+    }
+
+    if (from || to) {
+      filter.transactionDate = {};
+
+      if (from) {
+        filter.transactionDate.$gte = new Date(from);
+      }
+
+      if (to) {
+        const endDate = new Date(to);
+        endDate.setHours(23, 59, 59, 999);
+        filter.transactionDate.$lte = endDate;
+      }
+    }
+
+    const currentPage = Math.max(1, Number(page) || 1);
+    const perPage = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (currentPage - 1) * perPage;
+
+    const [collections, total] = await Promise.all([
+      CustomerLedger.find(filter)
+        .populate("customerId", "customerName companyName mobile")
+        .sort({ transactionDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(perPage),
+
+      CustomerLedger.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: collections,
+      pagination: {
+        total,
+        page: currentPage,
+        limit: perPage,
+        totalPages: Math.ceil(total / perPage),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to load collection history",
     });
   }
 });
@@ -2001,11 +2189,13 @@ const oldCustomerId = String(sale.customerId);
           throw new Error("Product not found");
         }
 
-        const lot = await Lot.findOne({
-          _id: item.lotId,
-          productId: item.productId,
-          status: { $in: ["ACTIVE", "COMPLETED"] },
-        }).session(session);
+      const lot = await Lot.findOne({
+  _id: item.lotId,
+  productId: item.productId,
+  status: { $in: ["ACTIVE", "COMPLETED"] },
+})
+  .populate("supplierId", "supplierName")
+  .session(session);
 
         if (!lot) {
           throw new Error("Selected lot is not available");
@@ -2065,10 +2255,12 @@ const lineProfit =
         calculatedItems.push({
           productId: product._id,
           productName: product.productName,
+          categoryName: product.category || "",
           lotId: lot._id,
           lotCode: lot.lotCode,
-          supplierId: lot.supplierId,
-          supplierName: lot.supplierName,
+supplierId: lot.supplierId?._id || lot.supplierId || null,
+supplierName: lot.supplierId?.supplierName || "",
+
           stockType,
           bags,
           weightKg,
