@@ -79,17 +79,11 @@ const navigation = [
     { label: "Inventory Dashboard", icon: LayoutDashboard },
     { label: "Stock In", icon: Plus },
     { label: "Stock Out", icon: Package },
-    { label: "Stock Transfer", icon: Truck },
-    { label: "Stock Adjustment", icon: Settings },
     { label: "Stock Return", icon: ClipboardList },
-
     { label: "Stock Transaction History", icon: ClipboardList },
-
+    { label: "Daily Stock Checking", icon: ClipboardList },
     { label: "Current Stock Report", icon: BarChart3 },
-    { label: "Warehouse Wise Stock", icon: Warehouse },
-    { label: "Stock Movement Report", icon: BarChart3 },
-    { label: "Low Stock Report", icon: BarChart3 },
-    { label: "Stock Valuation", icon: Wallet },
+  
   ],
 },
       {
@@ -185,8 +179,103 @@ const fieldStyle = {
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
- 
-  useEffect(() => {
+
+// GLOBAL KEYBOARD SHORTCUTS
+useEffect(() => {
+  const handleGlobalShortcut = (e) => {
+    if (!e.altKey || !e.shiftKey) return;
+
+    // Typing fields এ থাকলে shortcut বন্ধ
+    const tag = e.target?.tagName?.toLowerCase();
+
+    if (
+      tag === "input" ||
+      tag === "textarea" ||
+      tag === "select" ||
+      e.target?.isContentEditable
+    ) {
+      return;
+    }
+
+    const shortcuts = {
+      d: "Dashboard",
+      s: "Sales Dashboard",
+      n: "New Sales Invoice",
+      p: "Purchases",
+      i: "Inventory Dashboard",
+      c: "Daily Stock Checking",
+    };
+
+    const page = shortcuts[e.key.toLowerCase()];
+
+    if (page) {
+      e.preventDefault();
+      setActivePage(page);
+      setExpandedMenus({});
+      setSearchText("");
+      setShowForm(false);
+      setSidebarOpen(false);
+    }
+  };
+
+  window.addEventListener("keydown", handleGlobalShortcut);
+
+  return () => {
+    window.removeEventListener("keydown", handleGlobalShortcut);
+  };
+}, []);
+
+ // INVENTORY STOCK IN / STOCK OUT REPORT
+const [inventoryReport, setInventoryReport] = useState({
+  rows: [],
+  summary: {
+    overall: {},
+    own: {},
+    commission: {},
+  },
+});
+
+const [inventoryLoading, setInventoryLoading] = useState(false);
+  // STOCK TRANSACTION HISTORY
+const [stockTransactions, setStockTransactions] = useState([]);
+const [stockTransactionSummary, setStockTransactionSummary] = useState({});
+const [stockTransactionLoading, setStockTransactionLoading] = useState(false);
+
+
+// CURRENT STOCK REPORT
+const [currentStockReport, setCurrentStockReport] = useState({
+  data: [],
+  summary: {
+    own: {},
+    commission: {},
+    overall: {},
+  },
+});
+
+const [currentStockLoading, setCurrentStockLoading] = useState(false);
+const [currentStockSearch, setCurrentStockSearch] = useState("");
+const [currentStockType, setCurrentStockType] = useState("ALL");
+// DAILY STOCK CHECKING
+// DAILY STOCK CHECKING
+const [dailyStockRows, setDailyStockRows] = useState([]);
+const [dailyStockLoading, setDailyStockLoading] = useState(false);
+const [dailyStockSaving, setDailyStockSaving] = useState(false);
+const [dailyStockConfirming, setDailyStockConfirming] = useState(false);
+
+const [dailyStockDate, setDailyStockDate] = useState("");
+const [dailyStockNotes, setDailyStockNotes] = useState("");
+const [dailyStockSaved, setDailyStockSaved] = useState(false);
+const [dailyStockConfirmed, setDailyStockConfirmed] = useState(false);
+
+const [dailyStockProductFilter, setDailyStockProductFilter] = useState("ALL");
+const [dailyStockDifferenceFilter, setDailyStockDifferenceFilter] = useState("ALL");
+
+const [stockHistoryFrom, setStockHistoryFrom] = useState("");
+const [stockHistoryTo, setStockHistoryTo] = useState("");
+const [stockHistoryType, setStockHistoryType] = useState("ALL");
+const [stockHistoryProductId, setStockHistoryProductId] = useState("ALL");
+const [stockHistoryStockType, setStockHistoryStockType] = useState("ALL");
+useEffect(() => {
   if (activePage === "New Sales Invoice") {
     openSalesForm();
   }
@@ -904,6 +993,295 @@ async function loadOwnSalesReport(
     setOwnSalesReportLoading(false);
   }
 }
+
+// ========================================
+// LOAD INVENTORY STOCK IN / STOCK OUT REPORT
+// ========================================
+
+const loadInventoryReport = async () => {
+  try {
+    setInventoryLoading(true);
+
+    const data = await apiRequest("/reports/inventory-summary");
+
+    setInventoryReport({
+  rows: Array.isArray(data.data) ? data.data : [], 
+      summary: data.summary || {
+        overall: {},
+        own: {},
+        commission: {},
+      },
+    });
+  } catch (error) {
+    console.error("Inventory report load error:", error);
+    toast.error(error.message || "Inventory report load failed");
+  } finally {
+    setInventoryLoading(false);
+  }
+};
+
+// CURRENT STOCK REPORT LOADER
+const loadCurrentStockReport = async () => {
+  try {
+    setCurrentStockLoading(true);
+
+    const data = await apiRequest("/reports/current-stock-report");
+
+    setCurrentStockReport({
+      data: Array.isArray(data.data) ? data.data : [],
+      summary: data.summary || {
+        own: {},
+        commission: {},
+        overall: {},
+      },
+    });
+  } catch (error) {
+    console.error("Current stock report load error:", error);
+    toast.error(error.message || "Current Stock Report load failed");
+  } finally {
+    setCurrentStockLoading(false);
+  }
+};
+
+// ========================================
+// LOAD STOCK TRANSACTION HISTORY
+// ========================================
+
+const loadStockTransactionHistory = async (filters = {}) => {
+  try {
+    setStockTransactionLoading(true);
+
+    const params = new URLSearchParams();
+
+    const from = filters.from ?? stockHistoryFrom;
+    const to = filters.to ?? stockHistoryTo;
+    const type = filters.type ?? stockHistoryType;
+    const productId = filters.productId ?? stockHistoryProductId;
+    const stockType = filters.stockType ?? stockHistoryStockType;
+
+    if (from) params.append("from", from);
+    if (to) params.append("to", to);
+    if (type !== "ALL") params.append("type", type);
+    if (productId !== "ALL") params.append("productId", productId);
+    if (stockType !== "ALL") params.append("stockType", stockType);
+
+    const query = params.toString();
+
+    const result = await apiRequest(
+      `/reports/stock-transaction-history${query ? `?${query}` : ""}`
+    );
+
+    setStockTransactions(
+      Array.isArray(result.data) ? result.data : []
+    );
+
+    setStockTransactionSummary(result.summary || {});
+  } catch (error) {
+    console.error("Stock transaction history error:", error);
+    toast.error(error.message || "Stock Transaction History load failed");
+  } finally {
+    setStockTransactionLoading(false);
+  }
+};
+
+
+// ========================================
+// DAILY STOCK CHECK - LOAD
+// ========================================
+
+const getDhakaToday = () => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+};
+
+const loadDailyStockCheck = async (selectedDate = dailyStockDate) => {
+  try {
+    setDailyStockLoading(true);
+
+    const date = selectedDate || getDhakaToday();
+
+    if (!selectedDate) {
+      setDailyStockDate(date);
+    }
+
+    const result = await apiRequest(
+      `/reports/daily-stock-check?date=${date}`
+    );
+
+    setDailyStockRows(
+      (Array.isArray(result.data) ? result.data : []).map((row) => ({
+        ...row,
+        countedBags: row.countedBags ?? "",
+      }))
+    );
+
+    setDailyStockNotes(result.notes || "");
+    setDailyStockSaved(Boolean(result.isSaved));
+    setDailyStockConfirmed(Boolean(result.isConfirmed));
+
+  } catch (error) {
+    console.error("Daily Stock Check Load Error:", error);
+    toast.error(error.message || "Daily Stock Check load failed");
+  } finally {
+    setDailyStockLoading(false);
+  }
+};
+
+
+// ========================================
+// DAILY STOCK CHECK - SAVE
+// ========================================
+
+const saveDailyStockCheck = async () => {
+  try {
+    if (dailyStockConfirmed) {
+      toast.error("এই দিনের Stock Check ইতিমধ্যে Confirm করা হয়েছে");
+      return;
+    }
+
+    if (!dailyStockRows.length) {
+      toast.error("No stock data found");
+      return;
+    }
+
+    const incomplete = dailyStockRows.some(
+      (row) =>
+        row.countedBags === "" ||
+        !Number.isInteger(Number(row.countedBags)) ||
+        Number(row.countedBags) < 0
+    );
+
+    if (incomplete) {
+      toast.error("সব Product-এর Physical Count Bags পূরণ করুন");
+      return;
+    }
+
+    setDailyStockSaving(true);
+
+    const result = await apiRequest("/reports/daily-stock-check", {
+      method: "POST",
+      body: JSON.stringify({
+        date: dailyStockDate,
+        notes: dailyStockNotes,
+        rows: dailyStockRows.map((row) => ({
+          productId: row.productId,
+          productName: row.productName,
+          countedBags: Number(row.countedBags),
+        })),
+      }),
+    });
+
+    toast.success(
+      result.message || "Daily Stock Check saved successfully"
+    );
+
+    await loadDailyStockCheck(dailyStockDate);
+
+  } catch (error) {
+    console.error("Save Daily Stock Error:", error);
+    toast.error(error.message || "Failed to save Daily Stock");
+  } finally {
+    setDailyStockSaving(false);
+  }
+};
+
+
+// ========================================
+// DAILY STOCK CHECK - CONFIRM ADJUSTMENT
+// ========================================
+
+const confirmDailyStockAdjustment = async () => {
+  try {
+    if (!dailyStockSaved) {
+      toast.error("আগে Daily Stock Check Save করুন");
+      return;
+    }
+
+    if (dailyStockConfirmed) {
+      toast.error("এই দিনের Stock Check ইতিমধ্যে Confirm করা হয়েছে");
+      return;
+    }
+
+    const hasIncomplete = dailyStockRows.some(
+      (row) =>
+        row.countedBags === "" ||
+        !Number.isInteger(Number(row.countedBags)) ||
+        Number(row.countedBags) < 0
+    );
+
+    if (hasIncomplete) {
+      toast.error("সব Product-এর Physical Count সম্পূর্ণ করুন");
+      return;
+    }
+
+    const hasDifference = dailyStockRows.some(
+      (row) =>
+        Number(row.countedBags) !== Number(row.expectedBags)
+    );
+
+    const message = hasDifference
+      ? "আপনি কি নিশ্চিত? Confirm করলে Stock Shortage/Extra অনুযায়ী Inventory Stock পরিবর্তন হবে।"
+      : "সব Stock মিলেছে। Daily Stock Check Confirm করবেন?";
+
+    if (!window.confirm(message)) return;
+
+    setDailyStockConfirming(true);
+
+    const result = await apiRequest(
+      `/reports/daily-stock-check/${dailyStockDate}/confirm`,
+      {
+        method: "POST",
+      }
+    );
+
+    toast.success(
+      result.message || "Daily Stock Check Confirmed Successfully"
+    );
+
+    await loadDailyStockCheck(dailyStockDate);
+
+  } catch (error) {
+    console.error("Confirm Daily Stock Error:", error);
+    toast.error(error.message || "Stock Adjustment failed");
+  } finally {
+    setDailyStockConfirming(false);
+  }
+};
+
+// ========================================
+// AUTO LOAD DAILY STOCK CHECK
+// ========================================
+
+useEffect(() => {
+  if (activePage === "Daily Stock Checking") {
+    loadDailyStockCheck();
+  }
+}, [activePage]);
+
+
+// ========================================
+// AUTO LOAD INVENTORY REPORT
+// ========================================
+useEffect(() => {
+  if (activePage === "Stock Transaction History") {
+    loadStockTransactionHistory();
+  }
+}, [activePage]);
+
+
+useEffect(() => {
+  if (activePage === "Stock In" || activePage === "Stock Out") {
+    loadInventoryReport();
+  }
+
+  if (activePage === "Current Stock Report") {
+    loadCurrentStockReport();
+  }
+}, [activePage]);
 
 // Search Customer for Sales
 async function searchSalesCustomers(value) {
@@ -9397,6 +9775,522 @@ function getFilteredLots() {
 }
 
 
+function renderInventoryStockReport() {
+  const rows = inventoryReport?.rows || [];
+  const summary = inventoryReport?.summary || {};
+  const overall = summary.overall || {};
+  const own = summary.own || {};
+  const commission = summary.commission || {};
+
+  const isStockIn = activePage === "Stock In";
+
+  const number = (value) =>
+    Number(value || 0).toLocaleString("en-BD", {
+      maximumFractionDigits: 2,
+    });
+
+  const currency = (value) =>
+    `৳ ${Number(value || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const cards = isStockIn
+    ? [
+        { title: "Total Stock In", value: `${number(overall.stockInWeightKg)} KG`, sub: `${number(overall.stockInBags)} Bags` },
+        { title: "Purchase Value", value: currency(overall.stockInValue), sub: "Lot purchase cost" },
+        { title: "Purchase Return", value: `${number(overall.stockInWeightKg - overall.availableWeightKg - overall.totalOutWeightKg)} KG`, sub: "Returned / adjusted difference" },
+        { title: "Available Stock", value: `${number(overall.availableWeightKg)} KG`, sub: `${number(overall.availableBags)} Bags` },
+      ]
+    : [
+        { title: "Sales Out", value: `${number(overall.salesOutWeightKg)} KG`, sub: currency(overall.salesOutValue) },
+        { title: "Other Stock Out", value: `${number(overall.otherOutWeightKg)} KG`, sub: currency(overall.otherOutValue) },
+        { title: "Total Stock Out", value: `${number(overall.totalOutWeightKg)} KG`, sub: currency(overall.totalOutValue) },
+        { title: "Available Stock", value: `${number(overall.availableWeightKg)} KG`, sub: currency(overall.availableValue) },
+      ];
+
+  const displayRows = rows.filter((row) =>
+    isStockIn
+      ? true
+      : row.totalOutWeightKg > 0 || row.availableWeightKg > 0
+  );
+
+  return (
+    <div className="panel" style={{ padding: 22 }}>
+      <div className="page-heading">
+        <div>
+          <h2>{isStockIn ? "Stock In Report" : "Stock Out Report"}</h2>
+          <p>
+            {isStockIn
+              ? "Purchase Lot অনুযায়ী Stock In এবং বর্তমান মজুদের হিসাব"
+              : "Sales ও অন্যান্য Stock Out এবং অবশিষ্ট মজুদের হিসাব"}
+          </p>
+        </div>
+
+        <button
+          className="btn btn-primary"
+          onClick={loadInventoryReport}
+          disabled={inventoryLoading}
+        >
+          {inventoryLoading ? "Loading..." : "Refresh Report"}
+        </button>
+      </div>
+
+      {inventoryLoading ? (
+        <div style={{ padding: 35, textAlign: "center" }}>
+          Loading inventory report...
+        </div>
+      ) : (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: 14,
+              marginBottom: 24,
+            }}
+          >
+            {cards.map((card) => (
+              <div
+                key={card.title}
+                className="stat-card"
+                style={{ padding: 18 }}
+              >
+                <div style={{ fontSize: 13, color: "#64748b" }}>
+                  {card.title}
+                </div>
+                <h3 style={{ margin: "10px 0", fontSize: 21 }}>
+                  {card.value}
+                </h3>
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  {card.sub}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h3 style={{ marginBottom: 12 }}>Stock Type Summary</h3>
+
+       
+<div style={{ overflowX: "auto", marginBottom: 25 }}>
+  <table className="data-table">
+    <thead>
+      <tr>
+        <th>Stock Type</th>
+        <th>Stock In (Bags / KG)</th>
+        <th>Sales Out (Bags / KG)</th>
+        <th>Other Out (Bags / KG)</th>
+        <th>Available (Bags / KG)</th>
+        <th>Available Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {[
+        ["OWN", own],
+        ["COMMISSION", commission],
+        ["TOTAL", overall],
+      ].map(([type, item]) => (
+        <tr key={type}>
+          <td><strong>{type}</strong></td>
+          <td>{number(item.stockInBags)} / {number(item.stockInWeightKg)}</td>
+          <td>{number(item.salesOutBags)} / {number(item.salesOutWeightKg)}</td>
+          <td>{number(item.otherOutBags)} / {number(item.otherOutWeightKg)}</td>
+          <td>{number(item.availableBags)} / {number(item.availableWeightKg)}</td>
+          <td>{currency(item.availableValue)}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
+          <h3 style={{ marginBottom: 12 }}>
+            {isStockIn ? "Lot Wise Stock In Details" : "Lot Wise Stock Out Details"}
+          </h3>
+
+<div style={{ overflowX: "auto" }}>
+  <table className="data-table">
+    <thead>
+      <tr>
+        <th>Lot Code</th>
+        <th>Product</th>
+        <th>Stock Type</th>
+        <th>Purchase Date</th>
+        <th>Cost / KG</th>
+
+        {isStockIn && (
+          <>
+            <th>Stock In (Bags / KG)</th>
+            <th>Stock In Value</th>
+          </>
+        )}
+
+        <th>Sales Out (Bags / KG)</th>
+        <th>Other Out (Bags / KG)</th>
+        <th>Total Out (Bags / KG)</th>
+        <th>Available (Bags / KG)</th>
+        <th>Available Value</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {displayRows.length === 0 ? (
+        <tr>
+          <td
+            colSpan={isStockIn ? 12 : 10}
+            style={{ textAlign: "center", padding: 25 }}
+          >
+            No inventory records found
+          </td>
+        </tr>
+      ) : (
+        displayRows.map((row) => (
+          <tr key={row.lotId}>
+            <td><strong>{row.lotCode || "-"}</strong></td>
+            <td>{row.productName || "-"}</td>
+            <td>{row.stockType}</td>
+            <td>
+              {row.purchaseDate
+                ? new Date(row.purchaseDate).toLocaleDateString("en-GB")
+                : "-"}
+            </td>
+            <td>{currency(row.purchasePricePerKg)}</td>
+
+            {isStockIn && (
+              <>
+                <td>
+                  {number(row.stockInBags)} / {number(row.stockInWeightKg)}
+                </td>
+                <td>{currency(row.stockInValue)}</td>
+              </>
+            )}
+
+            <td>
+              {number(row.salesOutBags)} / {number(row.salesOutWeightKg)}
+            </td>
+            <td>
+              {number(row.otherOutBags)} / {number(row.otherOutWeightKg)}
+            </td>
+            <td>
+              {number(row.totalOutBags)} / {number(row.totalOutWeightKg)}
+            </td>
+            <td>
+              <strong>
+                {number(row.availableBags)} / {number(row.availableWeightKg)}
+              </strong>
+            </td>
+            <td><strong>{currency(row.availableValue)}</strong></td>
+          </tr>
+        ))
+      )}
+    </tbody>
+  </table>
+</div>
+
+         
+
+
+        </>
+      )}
+    </div>
+  );
+}
+
+// ========================================
+// CURRENT STOCK REPORT UI
+// ========================================
+
+function renderCurrentStockReport() {
+  const data = currentStockReport?.data || [];
+  const summary = currentStockReport?.summary || {};
+
+  const own = summary.own || {};
+  const commission = summary.commission || {};
+  const overall = summary.overall || {};
+
+  const number = (value) =>
+    Number(value || 0).toLocaleString("en-BD", {
+      maximumFractionDigits: 2,
+    });
+
+  const currency = (value) =>
+    `৳ ${Number(value || 0).toLocaleString("en-BD", {
+      maximumFractionDigits: 2,
+    })}`;
+
+  const filteredData = data.filter((row) => {
+    const search = currentStockSearch.toLowerCase();
+
+    const matchesSearch =
+      (row.productName || "").toLowerCase().includes(search) ||
+      (row.lotCode || "").toLowerCase().includes(search);
+
+    const matchesType =
+      currentStockType === "ALL" ||
+      row.stockType === currentStockType;
+
+    return matchesSearch && matchesType;
+  });
+
+  const summaryCards = [
+    {
+      title: "Total Bags",
+      value: number(overall.bags),
+      sub: "বস্তা",
+    },
+    {
+      title: "Total KG",
+      value: number(overall.weightKg),
+      sub: "কেজি",
+    },
+    {
+      title: "OWN Stock Value",
+      value: currency(own.value),
+      sub: "Own inventory",
+    },
+    {
+      title: "COMMISSION Value",
+      value: currency(commission.value),
+      sub: "Commission inventory",
+    },
+    {
+      title: "Total Stock Value",
+      value: currency(overall.value),
+      sub: "Total inventory value",
+    },
+  ];
+
+  return (
+    <div className="panel current-stock-report" style={{ padding: 22 }}>
+      <div className="page-heading">
+        <div>
+          <h2>Current Stock Report</h2>
+          <p>বর্তমানে গুদামে থাকা অবশিষ্ট স্টকের হিসাব</p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <span
+            style={{
+              background: "#dcfce7",
+              color: "#15803d",
+              padding: "7px 12px",
+              borderRadius: 20,
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            ● Live Stock
+          </span>
+
+          <button
+            className="btn btn-primary"
+            onClick={loadCurrentStockReport}
+            disabled={currentStockLoading}
+          >
+            {currentStockLoading ? "Loading..." : "Refresh"}
+          </button>
+
+          <button
+            className="btn btn-primary"
+            onClick={() => window.print()}
+          >
+            Print
+          </button>
+        </div>
+      </div>
+
+      {currentStockLoading ? (
+        <div style={{ padding: 35, textAlign: "center" }}>
+          Loading Current Stock Report...
+        </div>
+      ) : (
+        <>
+          {/* SUMMARY CARDS */}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 14,
+              marginBottom: 25,
+            }}
+          >
+            {summaryCards.map((card) => (
+              <div
+                key={card.title}
+                className="stat-card"
+                style={{ padding: 18 }}
+              >
+                <div style={{ fontSize: 13, color: "#64748b" }}>
+                  {card.title}
+                </div>
+
+                <h3 style={{ margin: "12px 0", fontSize: 23 }}>
+                  {card.value}
+                </h3>
+
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  {card.sub}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* STOCK TYPE SUMMARY */}
+
+          <h3 style={{ marginBottom: 12 }}>
+            Stock Type Summary
+          </h3>
+
+          <div style={{ overflowX: "auto", marginBottom: 28 }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Bags</th>
+                  <th>KG</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {[
+                  ["OWN", own],
+                  ["COMMISSION", commission],
+                  ["TOTAL", overall],
+                ].map(([type, item]) => (
+                  <tr key={type}>
+                    <td><strong>{type}</strong></td>
+                    <td>{number(item.bags)}</td>
+                    <td>{number(item.weightKg)}</td>
+                    <td><strong>{currency(item.value)}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* LOT WISE STOCK */}
+
+          <h3 style={{ marginBottom: 15 }}>
+            Lot-wise Current Stock
+          </h3>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginBottom: 18,
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Search product / lot"
+              value={currentStockSearch}
+              onChange={(e) => setCurrentStockSearch(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: 200,
+                padding: 10,
+                border: "1px solid #ddd",
+                borderRadius: 6,
+              }}
+            />
+
+            <select
+              value={currentStockType}
+              onChange={(e) => setCurrentStockType(e.target.value)}
+              style={{
+                minWidth: 140,
+                padding: 10,
+                border: "1px solid #ddd",
+                borderRadius: 6,
+              }}
+            >
+              <option value="ALL">All Types</option>
+              <option value="OWN">OWN</option>
+              <option value="COMMISSION">COMMISSION</option>
+            </select>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: 15,
+            }}
+          >
+            {filteredData.length === 0 ? (
+              <div style={{ padding: 25, textAlign: "center" }}>
+                No current stock found
+              </div>
+            ) : (
+              filteredData.map((row) => (
+                <div
+                  key={row.lotId}
+                  className="stat-card"
+                  style={{
+                    padding: 18,
+                    borderRadius: 10,
+                  }}
+                >
+                  <strong style={{ fontSize: 16 }}>
+                    {row.lotCode} — {row.productName}
+                  </strong>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      margin: "12px 0",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: row.stockType === "OWN" ? "#15803d" : "#2563eb",
+                      }}
+                    >
+                      {row.stockType}
+                    </span>
+
+                    <span style={{ fontSize: 13, color: "#64748b" }}>
+                      {number(row.availableBags)} bags
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: 23, margin: "12px 0" }}>
+                    {number(row.availableWeightKg)} KG
+                  </h3>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      fontSize: 13,
+                      color: "#64748b",
+                    }}
+                  >
+                    <span>
+                      Cost / KG: {currency(row.purchasePricePerKg)}
+                    </span>
+
+                    <strong style={{ color: "#0f172a" }}>
+                      {currency(row.availableValue)}
+                    </strong>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 function renderPurchases() {
   const pendingProducts = products.filter(
     (p) =>
@@ -10944,6 +11838,1085 @@ Purchase Management
   );
 }
 
+// ========================================
+// DAILY STOCK CHECKING PAGE
+// ========================================
+
+
+
+function renderDailyStockChecking() {
+  const number = (value) =>
+    Number(value || 0).toLocaleString("en-BD");
+
+  const total = (field) =>
+    dailyStockRows.reduce(
+      (sum, row) => sum + Number(row[field] || 0),
+      0
+    );
+
+  const totalCounted = dailyStockRows.reduce(
+    (sum, row) =>
+      sum +
+      (row.countedBags === "" || row.countedBags == null
+        ? 0
+        : Number(row.countedBags || 0)),
+    0
+  );
+
+  const matchedCount = dailyStockRows.filter(
+    (row) =>
+      row.countedBags !== "" &&
+      Number(row.countedBags) === Number(row.expectedBags)
+  ).length;
+
+  const shortCount = dailyStockRows.filter(
+    (row) =>
+      row.countedBags !== "" &&
+      Number(row.countedBags) < Number(row.expectedBags)
+  ).length;
+
+  const extraCount = dailyStockRows.filter(
+    (row) =>
+      row.countedBags !== "" &&
+      Number(row.countedBags) > Number(row.expectedBags)
+  ).length;
+
+  const updateCount = (productId, value) => {
+    if (value !== "" && (!/^\d+$/.test(value) || Number(value) < 0)) {
+      return;
+    }
+
+    setDailyStockRows((previous) =>
+      previous.map((row) =>
+        row.productId === productId
+          ? { ...row, countedBags: value }
+          : row
+      )
+    );
+
+    setDailyStockSaved(false);
+  };
+
+  const cardStyle = {
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: "18px 20px",
+    boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
+    minWidth: 0,
+  };
+
+  const labelStyle = {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: 600,
+    marginBottom: 9,
+    display: "block",
+  };
+
+  const valueStyle = {
+    fontSize: 25,
+    fontWeight: 750,
+    color: "#172033",
+    lineHeight: 1.2,
+  };
+
+  const getDifference = (row) => {
+    if (row.countedBags === "" || row.countedBags == null) {
+      return null;
+    }
+
+    return Number(row.countedBags) - Number(row.expectedBags || 0);
+  };
+
+  const getStatus = (row) => {
+    const difference = getDifference(row);
+
+    if (dailyStockConfirmed) {
+      return row.adjustmentStatus === "NOT_REQUIRED"
+        ? { label: "Matched", color: "#15803d", bg: "#dcfce7" }
+        : { label: "Adjusted", color: "#1d4ed8", bg: "#dbeafe" };
+    }
+
+    if (difference === null) {
+      return { label: "Pending", color: "#64748b", bg: "#f1f5f9" };
+    }
+
+    if (difference === 0) {
+      return { label: "Matched", color: "#15803d", bg: "#dcfce7" };
+    }
+
+    if (difference < 0) {
+      return { label: "Short", color: "#b91c1c", bg: "#fee2e2" };
+    }
+
+    return { label: "Extra", color: "#1d4ed8", bg: "#dbeafe" };
+  };
+
+  const inputStyle = {
+    width: 105,
+    padding: "9px 10px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 700,
+    textAlign: "center",
+    outline: "none",
+    background: "#ffffff",
+    boxSizing: "border-box",
+  };
+
+  return (
+    <div
+      style={{
+        padding: "4px 2px 25px",
+        color: "#172033",
+      }}
+    >
+      {/* PAGE HEADER */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 15,
+          marginBottom: 22,
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 750,
+              color: "#172033",
+            }}
+          >
+            Daily Stock Checking
+          </h2>
+
+          <p
+            style={{
+              margin: "6px 0 0",
+              color: "#64748b",
+              fontSize: 13,
+            }}
+          >
+            Physical stock verification and daily reconciliation
+          </p>
+        </div>
+
+        <button
+          className="btn btn-secondary"
+          onClick={() => loadDailyStockCheck(dailyStockDate)}
+          disabled={dailyStockLoading}
+          style={{
+            borderRadius: 8,
+            padding: "9px 17px",
+            fontWeight: 600,
+          }}
+        >
+          {dailyStockLoading ? "Loading..." : "↻ Refresh"}
+        </button>
+      </div>
+
+      {/* DATE AND STATUS */}
+      <div
+        style={{
+          ...cardStyle,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 18,
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <label style={labelStyle}>STOCK CHECKING DATE</label>
+
+          <input
+            type="date"
+            className="form-control"
+            value={dailyStockDate}
+            min="2026-11-23"
+            max={getDhakaToday()}
+            onChange={(e) => {
+              const selectedDate = e.target.value;
+              setDailyStockDate(selectedDate);
+              loadDailyStockCheck(selectedDate);
+            }}
+            style={{
+              width: 210,
+              maxWidth: "100%",
+              borderRadius: 8,
+              padding: 10,
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            padding: "12px 17px",
+            borderRadius: 10,
+            background: dailyStockConfirmed
+              ? "#dcfce7"
+              : dailyStockSaved
+              ? "#dbeafe"
+              : "#fff7ed",
+            color: dailyStockConfirmed
+              ? "#15803d"
+              : dailyStockSaved
+              ? "#1d4ed8"
+              : "#c2410c",
+            minWidth: 190,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 5 }}>
+            CHECK STATUS
+          </div>
+
+          <div style={{ fontSize: 14, fontWeight: 750 }}>
+            {dailyStockConfirmed
+              ? "✓ Confirmed"
+              : dailyStockSaved
+              ? "● Saved"
+              : "● Not Saved"}
+          </div>
+        </div>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(175px, 1fr))",
+          gap: 14,
+          marginBottom: 20,
+        }}
+      >
+        <div style={cardStyle}>
+          <span style={labelStyle}>Opening Stock</span>
+          <div style={valueStyle}>{number(total("openingBags"))}</div>
+          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 7 }}>
+            Total Bags
+          </div>
+        </div>
+
+        <div style={cardStyle}>
+          <span style={labelStyle}>Today's Sales</span>
+          <div style={{ ...valueStyle, color: "#dc2626" }}>
+            {number(total("salesBags"))}
+          </div>
+          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 7 }}>
+            Sold Bags
+          </div>
+        </div>
+
+        <div style={cardStyle}>
+          <span style={labelStyle}>Sales Return</span>
+          <div style={{ ...valueStyle, color: "#2563eb" }}>
+            {number(total("salesReturnBags"))}
+          </div>
+          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 7 }}>
+            Returned Bags
+          </div>
+        </div>
+
+        <div
+          style={{
+            ...cardStyle,
+            borderColor: "#bfdbfe",
+            background: "#f8fbff",
+          }}
+        >
+          <span style={labelStyle}>Expected Stock</span>
+          <div style={{ ...valueStyle, color: "#1d4ed8" }}>
+            {number(total("expectedBags"))}
+          </div>
+          <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 7 }}>
+            Expected Remaining Bags
+          </div>
+        </div>
+      </div>
+
+      {/* COUNT SUMMARY */}
+      <div
+        style={{
+          ...cardStyle,
+          marginBottom: 20,
+          padding: "15px 18px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 12,
+            marginBottom: 13,
+          }}
+        >
+          <strong style={{ fontSize: 14 }}>Physical Count Overview</strong>
+
+          <span style={{ fontSize: 12, color: "#64748b" }}>
+            {dailyStockRows.length} Products
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          {[
+            { label: "Matched", count: matchedCount, color: "#15803d", bg: "#dcfce7" },
+            { label: "Short", count: shortCount, color: "#b91c1c", bg: "#fee2e2" },
+            { label: "Extra", count: extraCount, color: "#1d4ed8", bg: "#dbeafe" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                background: item.bg,
+                color: item.color,
+                padding: "8px 13px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {item.label}: {item.count}
+            </div>
+          ))}
+
+          <div
+            style={{
+              background: "#f1f5f9",
+              color: "#475569",
+              padding: "8px 13px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            Counted: {number(totalCounted)} Bags
+          </div>
+        </div>
+      </div>
+
+      {/* PRODUCT TABLE */}
+      <div
+        style={{
+          ...cardStyle,
+          padding: 0,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "18px 20px",
+            borderBottom: "1px solid #e5e7eb",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 750 }}>
+            Product Stock Details
+          </h3>
+
+          <p style={{ margin: "5px 0 0", color: "#64748b", fontSize: 12 }}>
+            Enter the actual physical bag count for each product
+          </p>
+        </div>
+
+        {dailyStockLoading ? (
+          <div style={{ padding: 35, textAlign: "center", color: "#64748b" }}>
+            Loading stock data...
+          </div>
+        ) : dailyStockRows.length === 0 ? (
+          <div style={{ padding: 35, textAlign: "center", color: "#64748b" }}>
+            No stock data found for this date.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table
+              className="data-table"
+              style={{
+                width: "100%",
+                minWidth: 900,
+                borderCollapse: "collapse",
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f8fafc" }}>
+                  {[
+                    "Product",
+                    "Opening",
+                    "Sales",
+                    "Return",
+                    "Expected",
+                    "Physical Count",
+                    "Difference",
+                    "Status",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      style={{
+                        padding: "13px 12px",
+                        fontSize: 11,
+                        fontWeight: 750,
+                        color: "#475569",
+                        whiteSpace: "nowrap",
+                        borderBottom: "1px solid #e2e8f0",
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {dailyStockRows.map((row) => {
+                  const difference = getDifference(row);
+                  const status = getStatus(row);
+
+                  return (
+                    <tr
+                      key={row.productId}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                        background:
+                          difference !== null && difference !== 0
+                            ? "#fffdfd"
+                            : "#ffffff",
+                      }}
+                    >
+                      <td style={{ padding: "13px 12px" }}>
+                        <strong style={{ fontSize: 13 }}>
+                          {row.productName}
+                        </strong>
+                      </td>
+
+                      <td style={{ padding: 12, textAlign: "center" }}>
+                        {number(row.openingBags)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                          color: "#dc2626",
+                        }}
+                      >
+                        {number(row.salesBags)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                          color: "#2563eb",
+                        }}
+                      >
+                        {number(row.salesReturnBags)}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                          fontWeight: 750,
+                        }}
+                      >
+                        {number(row.expectedBags)}
+                      </td>
+
+                      <td style={{ padding: 10, textAlign: "center" }}>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={row.countedBags}
+                          placeholder="Bags"
+                          disabled={
+                            dailyStockConfirmed ||
+                            dailyStockSaving ||
+                            dailyStockConfirming
+                          }
+                          onChange={(e) =>
+                            updateCount(row.productId, e.target.value)
+                          }
+                          style={{
+                            ...inputStyle,
+                            background: dailyStockConfirmed ? "#f1f5f9" : "#fff",
+                          }}
+                        />
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          textAlign: "center",
+                          fontWeight: 750,
+                          color:
+                            difference === null
+                              ? "#94a3b8"
+                              : difference < 0
+                              ? "#dc2626"
+                              : difference > 0
+                              ? "#2563eb"
+                              : "#15803d",
+                        }}
+                      >
+                        {difference === null
+                          ? "-"
+                          : difference > 0
+                          ? `+${number(difference)}`
+                          : number(difference)}
+                      </td>
+
+                      <td style={{ padding: 12, textAlign: "center" }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "5px 10px",
+                            borderRadius: 20,
+                            fontSize: 11,
+                            fontWeight: 750,
+                            color: status.color,
+                            background: status.bg,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {status.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+
+              <tfoot>
+                <tr style={{ background: "#f8fafc", fontWeight: 750 }}>
+                  <td style={{ padding: 13 }}>TOTAL</td>
+                  <td style={{ textAlign: "center" }}>
+                    {number(total("openingBags"))}
+                  </td>
+                  <td style={{ textAlign: "center", color: "#dc2626" }}>
+                    {number(total("salesBags"))}
+                  </td>
+                  <td style={{ textAlign: "center", color: "#2563eb" }}>
+                    {number(total("salesReturnBags"))}
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    {number(total("expectedBags"))}
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    {number(totalCounted)}
+                  </td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* NOTES */}
+        <div
+          style={{
+            padding: 20,
+            borderTop: "1px solid #e5e7eb",
+          }}
+        >
+          <label
+            style={{
+              ...labelStyle,
+              color: "#334155",
+              fontSize: 13,
+            }}
+          >
+            Notes / Remarks
+          </label>
+
+          <textarea
+            className="form-control"
+            rows="3"
+            value={dailyStockNotes}
+            disabled={dailyStockConfirmed}
+            onChange={(e) => {
+              setDailyStockNotes(e.target.value);
+              setDailyStockSaved(false);
+            }}
+            placeholder="Write any stock checking notes here..."
+            style={{
+              borderRadius: 8,
+              resize: "vertical",
+            }}
+          />
+
+          {/* ACTIONS */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+              marginTop: 20,
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              {dailyStockConfirmed
+                ? "This day's stock reconciliation is completed."
+                : dailyStockSaved
+                ? "Physical count saved. You can now confirm the adjustment."
+                : "Complete all physical counts and save before confirmation."}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                className="btn btn-primary"
+                onClick={saveDailyStockCheck}
+                disabled={
+                  dailyStockSaving ||
+                  dailyStockLoading ||
+                  dailyStockConfirmed ||
+                  !dailyStockRows.length
+                }
+                style={{
+                  borderRadius: 8,
+                  padding: "10px 18px",
+                  fontWeight: 700,
+                }}
+              >
+                {dailyStockSaving ? "Saving..." : "Save Physical Count"}
+              </button>
+
+              <button
+                className="btn btn-primary"
+                onClick={confirmDailyStockAdjustment}
+                disabled={
+                  dailyStockConfirming ||
+                  dailyStockSaving ||
+                  dailyStockLoading ||
+                  !dailyStockSaved ||
+                  dailyStockConfirmed ||
+                  !dailyStockRows.length
+                }
+                style={{
+                  background: "#15803d",
+                  borderColor: "#0c66e4",
+                  borderRadius: 8,
+                  padding: "10px 18px",
+                  fontWeight: 700,
+                }}
+              >
+                {dailyStockConfirming
+                  ? "Confirming..."
+                  : dailyStockConfirmed
+                  ? "✓ Confirmed"
+                  : "Confirm Adjustment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+function renderStockTransactionHistory() {
+  const rows = stockTransactions || [];
+  const summary = stockTransactionSummary || {};
+
+  const number = (value) =>
+    Number(value || 0).toLocaleString("en-BD", {
+      maximumFractionDigits: 2,
+    });
+
+  const currency = (value) =>
+    `৳ ${Number(value || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const dateFormat = (value) =>
+    value
+      ? new Date(value).toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "-";
+
+  const typeLabel = (type) => {
+    const labels = {
+      PURCHASE: "Purchase / Stock In",
+      PURCHASE_RETURN: "Purchase Return",
+      SALES: "Sales",
+      SALES_RETURN: "Sales Return",
+      STOCK_OUT: "Other Stock Out",
+    };
+
+    return labels[type] || type;
+  };
+
+  const resetFilters = () => {
+    setStockHistoryFrom("");
+    setStockHistoryTo("");
+    setStockHistoryType("ALL");
+    setStockHistoryProductId("ALL");
+    setStockHistoryStockType("ALL");
+
+    loadStockTransactionHistory({
+      from: "",
+      to: "",
+      type: "ALL",
+      productId: "ALL",
+      stockType: "ALL",
+    });
+  };
+
+  const escapeHtml = (value) =>
+    String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[char]);
+
+  const printReport = () => {
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      toast.error("Please allow pop-ups to print the report");
+      return;
+    }
+
+    const tableRows = rows.map((row) => `
+      <tr>
+        <td>${escapeHtml(dateFormat(row.date))}</td>
+        <td>${escapeHtml(typeLabel(row.type))}</td>
+        <td>${escapeHtml(row.reference || "-")}</td>
+        <td>${escapeHtml(row.productName || "-")}</td>
+        <td>${escapeHtml(row.lotCode || "-")}</td>
+        <td>${escapeHtml(row.stockType || "-")}</td>
+        <td class="num">${number(row.bags)}</td>
+        <td class="num">${number(row.weightKg)}</td>
+        <td class="num">${currency(row.amount)}</td>
+        <td>${escapeHtml(row.notes || "-")}</td>
+      </tr>
+    `).join("");
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Stock Transaction History</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            color: #111827;
+          }
+          h2 { margin-bottom: 5px; }
+          p { color: #555; font-size: 12px; }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 10px;
+          }
+          th, td {
+            border: 1px solid #bbb;
+            padding: 7px 5px;
+            text-align: left;
+          }
+          th { background: #eee; }
+          .num { text-align: right; }
+          @page { size: landscape; margin: 10mm; }
+        </style>
+      </head>
+      <body>
+        <h2>Stock Transaction History</h2>
+        <p>
+          From: ${escapeHtml(stockHistoryFrom || "All")}
+          &nbsp; To: ${escapeHtml(stockHistoryTo || "All")}
+          &nbsp; Type: ${escapeHtml(stockHistoryType)}
+          &nbsp; Stock: ${escapeHtml(stockHistoryStockType)}
+        </p>
+        <p>Total Transactions: ${rows.length}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Transaction</th>
+              <th>Reference</th>
+              <th>Product</th>
+              <th>Lot</th>
+              <th>Stock</th>
+              <th>Bags</th>
+              <th>KG</th>
+              <th>Amount</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  };
+
+  const summaryCards = [
+    {
+      title: "Total Transactions",
+      value: number(summary.totalTransactions ?? rows.length),
+    },
+    {
+      title: "Purchase KG",
+      value: number(summary.purchaseKg),
+      sub: `${number(summary.purchaseBags)} Bags`,
+    },
+    {
+      title: "Purchase Return KG",
+      value: number(summary.purchaseReturnKg),
+      sub: `${number(summary.purchaseReturnBags)} Bags`,
+    },
+    {
+      title: "Sales KG",
+      value: number(summary.salesKg),
+      sub: `${number(summary.salesBags)} Bags`,
+    },
+    {
+      title: "Sales Return KG",
+      value: number(summary.salesReturnKg),
+      sub: `${number(summary.salesReturnBags)} Bags`,
+    },
+    {
+      title: "Other Stock Out KG",
+      value: number(summary.stockOutKg),
+      sub: `${number(summary.stockOutBags)} Bags`,
+    },
+  ];
+
+  return (
+    <div className="panel" style={{ padding: 22 }}>
+      <div className="page-heading">
+        <div>
+          <h2>Stock Transaction History</h2>
+          <p>Complete stock movement history with filters and print</p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => loadStockTransactionHistory()}
+            disabled={stockTransactionLoading}
+          >
+            {stockTransactionLoading ? "Loading..." : "Refresh"}
+          </button>
+
+          <button
+            className="btn btn-primary"
+            onClick={printReport}
+            disabled={stockTransactionLoading || rows.length === 0}
+          >
+            Print Report
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: 14,
+          margin: "20px 0",
+        }}
+      >
+        {summaryCards.map((card) => (
+          <div className="stat-card" key={card.title} style={{ padding: 16 }}>
+            <div style={{ fontSize: 13, color: "#64748b" }}>
+              {card.title}
+            </div>
+            <h3 style={{ margin: "10px 0", fontSize: 21 }}>
+              {card.value}
+            </h3>
+            {card.sub && (
+              <div style={{ fontSize: 12, color: "#64748b" }}>
+                {card.sub}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+          gap: 12,
+          padding: 16,
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <label>From Date</label>
+          <input
+            type="date"
+            value={stockHistoryFrom}
+            onChange={(e) => setStockHistoryFrom(e.target.value)}
+            style={{ width: "100%", padding: 10, marginTop: 6 }}
+          />
+        </div>
+
+        <div>
+          <label>To Date</label>
+          <input
+            type="date"
+            value={stockHistoryTo}
+            onChange={(e) => setStockHistoryTo(e.target.value)}
+            style={{ width: "100%", padding: 10, marginTop: 6 }}
+          />
+        </div>
+
+        <div>
+          <label>Transaction Type</label>
+          <select
+            value={stockHistoryType}
+            onChange={(e) => setStockHistoryType(e.target.value)}
+            style={{ width: "100%", padding: 10, marginTop: 6 }}
+          >
+            <option value="ALL">All Transactions</option>
+            <option value="PURCHASE">Purchase / Stock In</option>
+            <option value="PURCHASE_RETURN">Purchase Return</option>
+            <option value="SALES">Sales</option>
+            <option value="SALES_RETURN">Sales Return</option>
+            <option value="STOCK_OUT">Other Stock Out</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Product</label>
+          <select
+            value={stockHistoryProductId}
+            onChange={(e) => setStockHistoryProductId(e.target.value)}
+            style={{ width: "100%", padding: 10, marginTop: 6 }}
+          >
+            <option value="ALL">All Products</option>
+            {products.map((product) => (
+              <option key={product._id} value={product._id}>
+                {product.productName}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label>Stock Type</label>
+          <select
+            value={stockHistoryStockType}
+            onChange={(e) => setStockHistoryStockType(e.target.value)}
+            style={{ width: "100%", padding: 10, marginTop: 6 }}
+          >
+            <option value="ALL">All Stock</option>
+            <option value="OWN">OWN</option>
+            <option value="COMMISSION">COMMISSION</option>
+          </select>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "end", gap: 8 }}>
+          <button
+            className="btn btn-primary"
+            style={{ flex: 1 }}
+            disabled={stockTransactionLoading}
+            onClick={() => loadStockTransactionHistory()}
+          >
+            Apply Filter
+          </button>
+
+          <button
+            className="btn"
+            style={{ flex: 1 }}
+            disabled={stockTransactionLoading}
+            onClick={resetFilters}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {stockTransactionLoading ? (
+        <div style={{ padding: 35, textAlign: "center" }}>
+          Loading stock transactions...
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Transaction</th>
+                <th>Reference</th>
+                <th>Product</th>
+                <th>Lot</th>
+                <th>Stock Type</th>
+                <th>Bags</th>
+                <th>KG</th>
+                <th>Amount</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={10} style={{ textAlign: "center", padding: 25 }}>
+                    No stock transactions found
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row, index) => (
+                  <tr key={`${row.type}-${row.reference}-${row.date}-${index}`}>
+                    <td>{dateFormat(row.date)}</td>
+                    <td><strong>{typeLabel(row.type)}</strong></td>
+                    <td>{row.reference || "-"}</td>
+                    <td>{row.productName || "-"}</td>
+                    <td>{row.lotCode || "-"}</td>
+                    <td>{row.stockType || "-"}</td>
+                    <td>{number(row.bags)}</td>
+                    <td>{number(row.weightKg)}</td>
+                    <td>{currency(row.amount)}</td>
+                    <td>{row.notes || "-"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 
@@ -21111,18 +23084,26 @@ async function handleAdminLogout() {
     "OWN Profit / Loss",
   ].includes(activePage) && renderSales()}
 
-  {activePage === "Purchases" && renderPurchases()}
-  {activePage === "Stock In" && renderPurchases()}
-{/* INVENTORY MODULE */}
+
+{activePage === "Purchases" && renderPurchases()}
+
+{(activePage === "Stock In" || activePage === "Stock Out") &&
+  renderInventoryStockReport()}
+
+{activePage === "Current Stock Report" &&
+  renderCurrentStockReport()}
+
+{activePage === "Stock Transaction History" &&
+  renderStockTransactionHistory()}
+
+{activePage === "Daily Stock Checking" &&
+  renderDailyStockChecking()}
 {[
   "Inventory Dashboard",
-  "Stock In",
-  "Stock Out",
   "Stock Transfer",
   "Stock Adjustment",
   "Stock Return",
   "Stock Transaction History",
-  "Current Stock Report",
   "Warehouse Wise Stock",
   "Stock Movement Report",
   "Low Stock Report",
@@ -21133,6 +23114,7 @@ async function handleAdminLogout() {
     <p>Inventory Module তৈরি করা হচ্ছে।</p>
   </div>
 )}
+
 
   {activePage === "Commission Management" &&
     renderCommissionManagement()}
@@ -21173,12 +23155,7 @@ async function handleAdminLogout() {
     "Category Wise Sales",
     "Supplier Wise Sales",
     "OWN Profit / Loss",
-  ].includes(activePage) && (
-    <div className="panel" style={{ padding: 30 }}>
-      <h2>{activePage}</h2>
-      <p>এই Module পরবর্তী ধাপে তৈরি করব।</p>
-    </div>
-  )}
+  ]}
 
   <footer className="footer">
     <span>© 2026 Business ERP. All rights reserved.</span>

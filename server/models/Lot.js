@@ -11,7 +11,12 @@ const lotSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
-
+lotType: {
+  type: String,
+  enum: ["PURCHASE", "ADJUSTMENT"],
+  default: "PURCHASE",
+  required: true,
+},
     // Product information
     productId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -265,9 +270,36 @@ lotSchema.pre("validate", async function () {
 });
 
 // Initialize stock only for a purchased lot
+// Initialize stock for new lots
 lotSchema.pre("validate", function () {
   if (!this.isNew) return;
 
+  // Adjustment Lot: Bags only, no KG or purchase value
+  if (this.lotType === "ADJUSTMENT") {
+    this.bagsReceived = 0;
+    this.totalWeightKg = 0;
+
+    this.purchasePricePerKg = 0;
+    this.totalPurchaseAmount = 0;
+
+    this.returnedBags = 0;
+    this.returnedWeightKg = 0;
+    this.returnedPurchaseAmount = 0;
+
+    this.remainingBags = Math.max(
+      0,
+      Number(this.remainingBags) || 0
+    );
+
+    this.remainingWeightKg = 0;
+
+    this.soldBags = 0;
+    this.soldWeightKg = 0;
+
+    return;
+  }
+
+  // Existing Purchase Lot behavior
   if (this.status === "PENDING") {
     this.remainingBags = 0;
     this.remainingWeightKg = 0;
@@ -275,7 +307,7 @@ lotSchema.pre("validate", function () {
     return;
   }
 
-   this.remainingBags = this.bagsReceived || 0;
+  this.remainingBags = this.bagsReceived || 0;
   this.remainingWeightKg = this.totalWeightKg || 0;
 
   if (this.stockType === "COMMISSION") {
