@@ -54,7 +54,13 @@ type: {
       enum: ["CASH", "BANK", "BKASH", "NAGAD", "ROCKET", "OTHER"],
       default: null,
     },
-
+    // Linked Account for Customer Collection
+    accountId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Account",
+      default: null,
+      index: true,
+    },
     transactionId: {
       type: String,
       trim: true,

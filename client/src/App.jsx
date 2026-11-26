@@ -95,7 +95,30 @@ const navigation = [
           { label: "Commission Reports", icon: BarChart3 },
         ],
       },
-      { label: "Accounts", icon: Wallet },
+     
+      {
+  label: "Accounts",
+  icon: Wallet,
+  children: [
+    { label: "Add Account", icon: Plus },
+    { label: "Account Transactions", icon: Wallet },
+    { label: "Transaction History", icon: ClipboardList },
+  ],
+},
+
+{
+  label: "Loan Management",
+  icon: Wallet,
+  children: [
+    { label: "Loan Providers", icon: Users },
+    { label: "Loan Received", icon: Plus },
+    { label: "Loan Repayment", icon: Wallet },
+    { label: "Loan History", icon: ClipboardList },
+    { label: "Loan Reports", icon: BarChart3 },
+    { label: "Loan Analytics", icon: BarChart3 },
+    { label: "Loan Adjustment & Correction", icon: ClipboardList },
+  ],
+},
       { label: "Reports", icon: BarChart3 },
       { label: "Activity Log", icon: ClipboardList },
       { label: "Settings", icon: Settings },
@@ -179,6 +202,154 @@ const fieldStyle = {
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
+
+
+// ======================================
+// LOAN MANAGEMENT STATES
+// ======================================
+
+const [loanProviders, setLoanProviders] = useState([]);
+const [loanProviderLoading, setLoanProviderLoading] = useState(false);
+const [loanProviderSearch, setLoanProviderSearch] = useState("");
+const [loanProviderTypeFilter, setLoanProviderTypeFilter] = useState("ALL");
+
+const [loanProviderEditId, setLoanProviderEditId] = useState("");
+const [loanProviderEditLoading, setLoanProviderEditLoading] = useState(false);
+
+// ======================================
+// LOAN PROVIDER FORM STATES
+// ======================================
+
+const [loanProviderSaving, setLoanProviderSaving] = useState(false);
+
+const [loanProviderForm, setLoanProviderForm] = useState({
+  providerName: "",
+  providerType: "BANK",
+  mobile: "",
+  address: "",
+  bankName: "",
+  accountNumber: "",
+  branchName: "",
+  openingBalance: "0",
+  openingBalanceDate: new Date().toISOString().slice(0, 10),
+  notes: "",
+});
+
+// LOAN RECEIVED STATES
+const [loanReceivedProviders, setLoanReceivedProviders] = useState([]);
+const [loanReceivedAccounts, setLoanReceivedAccounts] = useState([]);
+const [loanReceivedLoading, setLoanReceivedLoading] = useState(false);
+const [loanReceivedSaving, setLoanReceivedSaving] = useState(false);
+
+const [loanReceivedForm, setLoanReceivedForm] = useState({
+  providerId: "",
+  accountId: "",
+  amount: "",
+  transactionDate: new Date().toISOString().slice(0, 10),
+  reference: "",
+  description: "",
+});
+
+
+// LOAN REPAYMENT STATES
+const [loanRepaymentProviders, setLoanRepaymentProviders] = useState([]);
+const [loanRepaymentAccounts, setLoanRepaymentAccounts] = useState([]);
+const [loanRepaymentLoading, setLoanRepaymentLoading] = useState(false);
+const [loanRepaymentSaving, setLoanRepaymentSaving] = useState(false);
+
+const [loanRepaymentForm, setLoanRepaymentForm] = useState({
+  providerId: "",
+  accountId: "",
+  principalAmount: "",
+  interestAmount: "0",
+  transactionDate: new Date().toISOString().slice(0, 10),
+  reference: "",
+  description: "",
+});
+
+// LOAN HISTORY STATES
+const [loanHistoryProviders, setLoanHistoryProviders] = useState([]);
+const [loanHistoryTransactions, setLoanHistoryTransactions] = useState([]);
+const [loanHistoryLoading, setLoanHistoryLoading] = useState(false);
+const [loanHistoryProviderId, setLoanHistoryProviderId] = useState("");
+const [loanHistoryTypeFilter, setLoanHistoryTypeFilter] = useState("ALL");
+const [loanHistoryFromDate, setLoanHistoryFromDate] = useState("");
+const [loanHistoryToDate, setLoanHistoryToDate] = useState("");
+
+// LOAN REPORT STATES
+const [loanReportProviders, setLoanReportProviders] = useState([]);
+const [loanReportLoading, setLoanReportLoading] = useState(false);
+const [loanReportFromDate, setLoanReportFromDate] = useState("");
+const [loanReportToDate, setLoanReportToDate] = useState("");
+const [loanReportData, setLoanReportData] = useState([]);
+
+const [loanAnalyticsPeriod, setLoanAnalyticsPeriod] = useState("ALL");
+
+// LOAN ADJUSTMENT STATES
+const [loanAdjustmentProviderId, setLoanAdjustmentProviderId] = useState("");
+const [loanAdjustmentTransactionId, setLoanAdjustmentTransactionId] = useState("");
+const [loanAdjustmentMethod, setLoanAdjustmentMethod] = useState("DIRECT_EDIT");
+const [loanAdjustmentReason, setLoanAdjustmentReason] = useState("");
+
+const [loanAdjustmentForm, setLoanAdjustmentForm] = useState({
+  providerId: "",
+  accountId: "",
+  principalAmount: "",
+  interestAmount: "0",
+  transactionDate: "",
+  reference: "",
+  description: "",
+});
+
+const [loanAdjustmentSaving, setLoanAdjustmentSaving] = useState(false);
+
+// ======================================
+// ACCOUNT MANAGEMENT STATES
+// ======================================
+
+const [accounts, setAccounts] = useState([]);
+const [accountLoading, setAccountLoading] = useState(false);
+const [accountSaving, setAccountSaving] = useState(false);
+
+const [accountForm, setAccountForm] = useState({
+  accountName: "",
+  accountType: "CASH",
+  bankName: "",
+  accountNumber: "",
+  branchName: "",
+  openingBalance: "0",
+  openingBalanceDate: new Date().toISOString().slice(0, 10),
+  notes: "",
+});
+// ACCOUNT TRANSACTION STATES
+const [transactionSaving, setTransactionSaving] = useState(false);
+
+const [transactionForm, setTransactionForm] = useState({
+  transactionType: "DEPOSIT",
+  accountId: "",
+  relatedAccountId: "",
+  amount: "",
+  transactionDate: new Date().toISOString().slice(0, 10),
+  reference: "",
+  description: "",
+});
+
+// ACCOUNT TRANSACTION HISTORY STATES
+const [accountTransactions, setAccountTransactions] = useState([]);
+const [transactionHistoryLoading, setTransactionHistoryLoading] = useState(false);
+
+const [transactionFilters, setTransactionFilters] = useState({
+  accountId: "",
+  transactionType: "",
+  fromDate: "",
+  toDate: "",
+});
+
+const [transactionPagination, setTransactionPagination] = useState({
+  currentPage: 1,
+  totalPages: 1,
+  totalTransactions: 0,
+});
 
 // GLOBAL KEYBOARD SHORTCUTS
 useEffect(() => {
@@ -281,7 +452,21 @@ useEffect(() => {
   }
 }, [activePage]);
  
- 
+ useEffect(() => {
+  if (
+    activePage === "Sales Collection" ||
+    activePage === "Customer Payment"
+  ) {
+    loadSalesCollectionAccounts();
+  }
+}, [activePage]);
+
+useEffect(() => {
+  if (activePage === "Loan Adjustment & Correction") {
+    loadLoanReportData();
+  }
+}, [activePage]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 // ADMIN AUTHENTICATION
 const [adminUser, setAdminUser] = useState(null);
@@ -371,7 +556,9 @@ const [dueStartDate, setDueStartDate] = useState("");
 const [dueEndDate, setDueEndDate] = useState("");
 const [dueCustomerSearch, setDueCustomerSearch] = useState("");
 const [dueCustomerAddress, setDueCustomerAddress] = useState("");
+// Account List for Sales Payment
 
+const [accountsLoading, setAccountsLoading] = useState(false);
 
   const [categories, setCategories] = useState([]);
 const [categoryLoading, setCategoryLoading] = useState(false);
@@ -419,6 +606,43 @@ useEffect(() => {
     isMounted = false;
   };
 }, []);
+// LOAD ACCOUNTS FOR SALES PAYMENT
+useEffect(() => {
+  if (!adminUser) {
+    setAccounts([]);
+    return;
+  }
+
+  let isMounted = true;
+
+  async function loadSalesAccounts() {
+    try {
+      setAccountsLoading(true);
+
+      const result = await apiRequest("/accounts");
+
+      if (isMounted) {
+        setAccounts(Array.isArray(result.data) ? result.data : []);
+      }
+    } catch (error) {
+      console.error("Failed to load accounts:", error);
+
+      if (isMounted) {
+        setAccounts([]);
+      }
+    } finally {
+      if (isMounted) {
+        setAccountsLoading(false);
+      }
+    }
+  }
+
+  loadSalesAccounts();
+
+  return () => {
+    isMounted = false;
+  };
+}, [adminUser]);
 
 
 const [editingSubcategoryId, setEditingSubcategoryId] = useState(null);
@@ -445,10 +669,18 @@ const [paymentCustomer, setPaymentCustomer] = useState(null);
 const [customerPaymentForm, setCustomerPaymentForm] = useState({
   amount: "",
   paymentMethod: "CASH",
+  accountId: "",
   transactionId: "",
   transactionDate: new Date().toISOString().split("T")[0],
   notes: "",
 });
+
+const [supplierPaymentAccounts, setSupplierPaymentAccounts] = useState([]);
+const [supplierPaymentAccountsLoading, setSupplierPaymentAccountsLoading] = useState(false);
+
+const [customerCollectionAccounts, setCustomerCollectionAccounts] = useState([]);
+const [customerCollectionAccountsLoading, setCustomerCollectionAccountsLoading] = useState(false);
+
 const [showCustomerPaymentForm, setShowCustomerPaymentForm] = useState(false);
 const [customerPaymentLoading, setCustomerPaymentLoading] = useState(false);
 const [paymentLoading, setPaymentLoading] = useState(false);
@@ -456,6 +688,7 @@ const [paymentLoading, setPaymentLoading] = useState(false);
 const [paymentForm, setPaymentForm] = useState({
   amount: "",
   paymentMethod: "CASH",
+  accountId: "",
   transactionId: "",
   transactionDate: new Date().toISOString().split("T")[0],
   notes: "",
@@ -569,6 +802,7 @@ const [paymentEditLoading, setPaymentEditLoading] = useState(false);
 const [paymentEditForm, setPaymentEditForm] = useState({
   amount: "",
   paymentMethod: "CASH",
+    accountId: "",
   transactionId: "",
   transactionDate: "",
   description: "",
@@ -596,13 +830,13 @@ const [customerPaymentEditLoading, setCustomerPaymentEditLoading] = useState(fal
 const [customerPaymentEditForm, setCustomerPaymentEditForm] = useState({
   amount: "",
   paymentMethod: "CASH",
+  accountId: "",
   transactionId: "",
   reference: "",
   transactionDate: "",
   description: "",
   reason: "",
 });
-
 const [showCustomerPaymentVoid, setShowCustomerPaymentVoid] = useState(false);
 const [voidingCustomerPayment, setVoidingCustomerPayment] = useState(null);
 const [customerPaymentVoidReason, setCustomerPaymentVoidReason] = useState("");
@@ -746,7 +980,19 @@ const [collectionDescription, setCollectionDescription] = useState("");
 const [collectionTransactionDate, setCollectionTransactionDate] = useState(
   new Date().toISOString().slice(0, 10)
 );
+const [collectionAccountId, setCollectionAccountId] = useState("");
+const [collectionAccounts, setCollectionAccounts] = useState([]);
+const [collectionAccountsLoading, setCollectionAccountsLoading] = useState(false);
 
+const requiresCollectionAccount = ["CASH", "BANK", "BKASH"].includes(
+  collectionPaymentMethod
+);
+
+const filteredCollectionAccounts = collectionAccounts.filter(
+  (account) =>
+    account.accountType === collectionPaymentMethod &&
+    account.isActive !== false
+);
 const [collectionLoading, setCollectionLoading] = useState(false);
 const [collectionHistory, setCollectionHistory] = useState([]);
 const [collectionHistoryLoading, setCollectionHistoryLoading] = useState(false);
@@ -781,6 +1027,7 @@ const [salesForm, setSalesForm] = useState({
   discount: "0",
   paidAmount: "0",
   paymentMethod: "CASH",
+  accountId: "",
   paymentReference: "",
   notes: "",
 });
@@ -800,6 +1047,8 @@ const [salesReturnSubmitting, setSalesReturnSubmitting] = useState(false);
 const [selectedSalesReturn, setSelectedSalesReturn] = useState(null);
 const [salesReturnItems, setSalesReturnItems] = useState([]);
 const [salesReturnRefundMethod, setSalesReturnRefundMethod] = useState("CASH");
+const [salesReturnRefundAccountId, setSalesReturnRefundAccountId] = useState("");
+
 const [salesReturnNotes, setSalesReturnNotes] = useState("");
 const [cancelReason, setCancelReason] = useState("");
 const [cancellingSalesInvoice, setCancellingSalesInvoice] = useState(false);
@@ -834,6 +1083,543 @@ async function apiRequest(url, options = {}) {
   }
 
   return data;
+}
+
+// ======================================
+// LOAN PROVIDER API
+// ======================================
+
+async function loadLoanProviders() {
+  try {
+    setLoanProviderLoading(true);
+
+    const params = new URLSearchParams();
+
+    if (loanProviderSearch.trim()) {
+      params.append("search", loanProviderSearch.trim());
+    }
+
+    if (loanProviderTypeFilter !== "ALL") {
+      params.append("providerType", loanProviderTypeFilter);
+    }
+
+    params.append("status", "ACTIVE");
+
+    const result = await apiRequest(
+      `/loans/providers?${params.toString()}`
+    );
+
+    setLoanProviders(result.data || []);
+  } catch (error) {
+    toast.error(error.message || "Loan Providers load failed");
+  } finally {
+    setLoanProviderLoading(false);
+  }
+}
+
+// LOAD DATA FOR LOAN RECEIVED
+async function loadLoanReceivedData() {
+  try {
+    setLoanReceivedLoading(true);
+
+    const [providerResult, accountResult] = await Promise.all([
+      apiRequest("/loans/providers?status=ACTIVE"),
+      apiRequest("/accounts"),
+    ]);
+
+    setLoanReceivedProviders(providerResult.data || []);
+    setLoanReceivedAccounts(accountResult.data || []);
+  } catch (error) {
+    toast.error(error.message || "Loan Received data load failed");
+  } finally {
+    setLoanReceivedLoading(false);
+  }
+}
+// LOAD DATA FOR LOAN REPAYMENT
+async function loadLoanRepaymentData() {
+  try {
+    setLoanRepaymentLoading(true);
+
+    const [providerResult, accountResult] = await Promise.all([
+      apiRequest("/loans/providers?status=ACTIVE"),
+      apiRequest("/accounts"),
+    ]);
+
+    setLoanRepaymentProviders(providerResult.data || []);
+    setLoanRepaymentAccounts(accountResult.data || []);
+  } catch (error) {
+    toast.error(error.message || "Loan Repayment data load failed");
+  } finally {
+    setLoanRepaymentLoading(false);
+  }
+}
+
+
+
+// LOAD LOAN HISTORY DATA
+async function loadLoanHistoryData() {
+  try {
+    setLoanHistoryLoading(true);
+
+    const providerResult = await apiRequest("/loans/providers?status=ACTIVE");
+    const providers = providerResult.data || [];
+
+    setLoanHistoryProviders(providers);
+
+    const selectedProviderId = loanHistoryProviderId;
+
+    if (selectedProviderId) {
+      const result = await apiRequest(
+        `/loans/${selectedProviderId}/transactions`
+      );
+
+      setLoanHistoryTransactions(result.data || []);
+    } else {
+      const transactionResults = await Promise.all(
+        providers.map((provider) =>
+          apiRequest(`/loans/${provider._id}/transactions`)
+        )
+      );
+
+      const allTransactions = transactionResults.flatMap(
+        (result) => result.data || []
+      );
+
+      setLoanHistoryTransactions(allTransactions);
+    }
+  } catch (error) {
+    toast.error(error.message || "Loan History load failed");
+  } finally {
+    setLoanHistoryLoading(false);
+  }
+}
+// LOAD LOAN REPORT DATA
+async function loadLoanReportData() {
+  try {
+    setLoanReportLoading(true);
+
+    const providerResult = await apiRequest(
+      "/loans/providers?status=ACTIVE"
+    );
+
+    const providers = providerResult.data || [];
+
+    const reportResults = await Promise.all(
+      providers.map(async (provider) => {
+        const [summaryResult, transactionResult] = await Promise.all([
+          apiRequest(`/loans/${provider._id}/summary`),
+          apiRequest(`/loans/${provider._id}/transactions`),
+        ]);
+
+        return {
+          provider,
+          summary: summaryResult.data || {},
+          transactions: transactionResult.data || [],
+        };
+      })
+    );
+
+    setLoanReportProviders(providers);
+    setLoanReportData(reportResults);
+
+  } catch (error) {
+    toast.error(error.message || "Loan Reports load failed");
+  } finally {
+    setLoanReportLoading(false);
+  }
+}
+// SAVE LOAN REPAYMENT
+async function saveLoanRepayment(e) {
+  e.preventDefault();
+
+  const selectedProvider = loanRepaymentProviders.find(
+    (provider) => provider._id === loanRepaymentForm.providerId
+  );
+
+  const principalAmount = Number(
+    loanRepaymentForm.principalAmount || 0
+  );
+
+  const interestAmount =
+    selectedProvider?.providerType === "PERSON"
+      ? Number(loanRepaymentForm.interestAmount || 0)
+      : 0;
+
+  if (!loanRepaymentForm.providerId) {
+    toast.error("Loan Provider নির্বাচন করুন");
+    return;
+  }
+
+  if (!loanRepaymentForm.accountId) {
+    toast.error("Payment Account নির্বাচন করুন");
+    return;
+  }
+
+  if (
+    !Number.isFinite(principalAmount) ||
+    !Number.isFinite(interestAmount) ||
+    principalAmount < 0 ||
+    interestAmount < 0
+  ) {
+    toast.error("সঠিক Repayment Amount লিখুন");
+    return;
+  }
+
+  if (principalAmount + interestAmount <= 0) {
+    toast.error("Principal অথবা Interest Amount দিতে হবে");
+    return;
+  }
+
+  if (
+    selectedProvider?.providerType === "BANK" &&
+    principalAmount <= 0
+  ) {
+    toast.error("Bank Loan Repayment Amount দিতে হবে");
+    return;
+  }
+
+  try {
+    setLoanRepaymentSaving(true);
+
+    const result = await apiRequest("/loans/repayment", {
+      method: "POST",
+      body: JSON.stringify({
+        providerId: loanRepaymentForm.providerId,
+        accountId: loanRepaymentForm.accountId,
+        principalAmount,
+        interestAmount,
+        transactionDate: loanRepaymentForm.transactionDate,
+        reference: loanRepaymentForm.reference,
+        description: loanRepaymentForm.description,
+      }),
+    });
+
+    toast.success(result.message || "Loan Repayment সফলভাবে Save হয়েছে");
+
+    setLoanRepaymentForm({
+      providerId: "",
+      accountId: "",
+      principalAmount: "",
+      interestAmount: "0",
+      transactionDate: new Date().toISOString().slice(0, 10),
+      reference: "",
+      description: "",
+    });
+
+    await loadLoanRepaymentData();
+  } catch (error) {
+    toast.error(error.message || "Loan Repayment Save হয়নি");
+  } finally {
+    setLoanRepaymentSaving(false);
+  }
+}
+
+
+
+// SAVE LOAN RECEIVED
+async function saveLoanReceived(e) {
+  e.preventDefault();
+
+  const amount = Number(loanReceivedForm.amount);
+
+  if (!loanReceivedForm.providerId) {
+    toast.error("Loan Provider নির্বাচন করুন");
+    return;
+  }
+
+  if (!loanReceivedForm.accountId) {
+    toast.error("যে Account-এ টাকা জমা হবে সেটি নির্বাচন করুন");
+    return;
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast.error("সঠিক Loan Amount লিখুন");
+    return;
+  }
+
+  try {
+    setLoanReceivedSaving(true);
+
+    const result = await apiRequest("/loans/received", {
+      method: "POST",
+      body: JSON.stringify({
+        ...loanReceivedForm,
+        amount,
+      }),
+    });
+
+    toast.success(result.message || "Loan Received সফলভাবে Save হয়েছে");
+
+    setLoanReceivedForm({
+      providerId: "",
+      accountId: "",
+      amount: "",
+      transactionDate: new Date().toISOString().slice(0, 10),
+      reference: "",
+      description: "",
+    });
+
+    await loadLoanReceivedData();
+  } catch (error) {
+    toast.error(error.message || "Loan Received Save হয়নি");
+  } finally {
+    setLoanReceivedSaving(false);
+  }
+}
+
+useEffect(() => {
+  if (!adminUser || activePage !== "Loan Received") return;
+
+  loadLoanReceivedData();
+}, [adminUser, activePage]);
+
+useEffect(() => {
+  if (!adminUser || activePage !== "Loan Repayment") return;
+
+  loadLoanRepaymentData();
+}, [adminUser, activePage]);
+
+
+useEffect(() => {
+  if (!adminUser || activePage !== "Loan History") return;
+
+  loadLoanHistoryData();
+}, [adminUser, activePage]);
+
+useEffect(() => {
+  if (
+    !adminUser ||
+    !["Loan Reports", "Loan Analytics"].includes(activePage)
+  ) {
+    return;
+  }
+
+  loadLoanReportData();
+}, [adminUser, activePage]);
+// ======================================
+// SAVE LOAN PROVIDER
+// ======================================
+
+
+async function saveLoanProvider(e) {
+  e.preventDefault();
+
+  if (!loanProviderForm.providerName.trim()) {
+    toast.error("Provider Name দিতে হবে");
+    return;
+  }
+
+  if (
+    loanProviderForm.providerType === "BANK" &&
+    !loanProviderForm.bankName.trim()
+  ) {
+    toast.error("Bank Name দিতে হবে");
+    return;
+  }
+
+  const openingBalance = Number(loanProviderForm.openingBalance || 0);
+
+  if (!Number.isFinite(openingBalance) || openingBalance < 0) {
+    toast.error("Opening Loan Balance সঠিক নয়");
+    return;
+  }
+
+  try {
+    setLoanProviderSaving(true);
+
+    const isEditing = Boolean(loanProviderEditId);
+
+    const result = await apiRequest(
+      isEditing
+        ? `/loans/providers/${loanProviderEditId}`
+        : "/loans/providers",
+      {
+        method: isEditing ? "PUT" : "POST",
+        body: JSON.stringify({
+          ...loanProviderForm,
+          providerName: loanProviderForm.providerName.trim(),
+          openingBalance,
+        }),
+      }
+    );
+
+    toast.success(
+      result.message ||
+        (isEditing
+          ? "Loan Provider Update হয়েছে"
+          : "Loan Provider সফলভাবে Save হয়েছে")
+    );
+
+    cancelEditLoanProvider();
+
+    await loadLoanProviders();
+    await loadLoanReportData();
+
+  } catch (error) {
+    toast.error(error.message || "Loan Provider Save হয়নি");
+  } finally {
+    setLoanProviderSaving(false);
+  }
+}
+
+// ======================================
+// LOAD LOAN PROVIDERS WHEN PAGE OPENS
+// ======================================
+
+useEffect(() => {
+  if (!adminUser || activePage !== "Loan Providers") {
+    return;
+  }
+
+  loadLoanProviders();
+}, [
+  adminUser,
+  activePage,
+  loanProviderSearch,
+  loanProviderTypeFilter,
+]);
+// ======================================
+// ACCOUNT API FUNCTIONS
+// ======================================
+
+async function loadAccounts() {
+  try {
+    setAccountLoading(true);
+
+    const response = await apiRequest("/accounts");
+
+    setAccounts(response.data || []);
+  } catch (error) {
+    toast.error(error.message || "Failed to load accounts");
+  } finally {
+    setAccountLoading(false);
+  }
+}
+
+async function loadSupplierPaymentAccounts() {
+  try {
+    setSupplierPaymentAccountsLoading(true);
+
+    const response = await apiRequest("/accounts");
+
+    setSupplierPaymentAccounts(response.data || []);
+  } catch (error) {
+    toast.error(error.message || "Failed to load supplier accounts");
+    throw error;
+  } finally {
+    setSupplierPaymentAccountsLoading(false);
+  }
+}
+
+
+// LOAD ACCOUNT TRANSACTION HISTORY
+async function loadAccountTransactions(page = 1) {
+  try {
+    setTransactionHistoryLoading(true);
+
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: "50",
+    });
+
+    if (transactionFilters.accountId) {
+      params.append("accountId", transactionFilters.accountId);
+    }
+
+    if (transactionFilters.transactionType) {
+      params.append("transactionType", transactionFilters.transactionType);
+    }
+
+    if (transactionFilters.fromDate) {
+      params.append("fromDate", transactionFilters.fromDate);
+    }
+
+    if (transactionFilters.toDate) {
+      params.append("toDate", transactionFilters.toDate);
+    }
+
+    const response = await apiRequest(
+      `/accounts/transactions?${params.toString()}`
+    );
+
+    setAccountTransactions(response.data || []);
+
+    setTransactionPagination(
+      response.pagination || {
+        currentPage: 1,
+        totalPages: 1,
+        totalTransactions: 0,
+      }
+    );
+  } catch (error) {
+    toast.error(error.message || "Transaction history load failed");
+  } finally {
+    setTransactionHistoryLoading(false);
+  }
+}
+
+// ========================================
+// ACCOUNT TRANSACTION API
+// ========================================
+
+async function saveAccountTransaction() {
+  if (!transactionForm.accountId) {
+    toast.error("Account নির্বাচন করো");
+    return;
+  }
+
+  if (
+    transactionForm.transactionType === "TRANSFER" &&
+    !transactionForm.relatedAccountId
+  ) {
+    toast.error("Destination Account নির্বাচন করো");
+    return;
+  }
+
+  if (
+    transactionForm.transactionType === "TRANSFER" &&
+    transactionForm.accountId === transactionForm.relatedAccountId
+  ) {
+    toast.error("একই Account-এ Transfer করা যাবে না");
+    return;
+  }
+
+  const amount = Number(transactionForm.amount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast.error("সঠিক Amount লিখো");
+    return;
+  }
+
+  try {
+    setTransactionSaving(true);
+
+    await apiRequest("/accounts/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        ...transactionForm,
+        amount,
+      }),
+    });
+
+    toast.success("Transaction সফলভাবে সম্পন্ন হয়েছে");
+
+    setTransactionForm({
+      transactionType: "DEPOSIT",
+      accountId: "",
+      relatedAccountId: "",
+      amount: "",
+      transactionDate: new Date().toISOString().slice(0, 10),
+      reference: "",
+      description: "",
+    });
+
+    await loadAccounts();
+  } catch (error) {
+    toast.error(error.message || "Transaction সম্পন্ন হয়নি");
+  } finally {
+    setTransactionSaving(false);
+  }
 }
 
 // ======================================
@@ -1261,7 +2047,19 @@ useEffect(() => {
     loadDailyStockCheck();
   }
 }, [activePage]);
+useEffect(() => {
+  if (
+    activePage === "Add Account" ||
+    activePage === "Account Transactions" ||
+    activePage === "Transaction History"
+  ) {
+    loadAccounts();
+  }
 
+  if (activePage === "Transaction History") {
+    loadAccountTransactions(1);
+  }
+}, [activePage]);
 
 // ========================================
 // AUTO LOAD INVENTORY REPORT
@@ -1339,6 +2137,29 @@ async function searchCollectionCustomers(value) {
   }
 }
 
+
+
+// ========================================
+// LOAD ACTIVE ACCOUNTS FOR SALES COLLECTION
+// ========================================
+
+async function loadSalesCollectionAccounts() {
+  try {
+    setCollectionAccountsLoading(true);
+
+    const result = await apiRequest("/accounts");
+
+    const activeAccounts = (result.data || []).filter(
+      (account) => account.isActive !== false
+    );
+
+    setCollectionAccounts(activeAccounts);
+  } catch (error) {
+    toast.error(error.message || "Account load করা যায়নি");
+  } finally {
+    setCollectionAccountsLoading(false);
+  }
+}
 // ========================================
 // LOAD SALES COLLECTION HISTORY
 // ========================================
@@ -1361,6 +2182,8 @@ async function loadCollectionHistory() {
 // SUBMIT SALES COLLECTION
 // ========================================
 
+
+
 async function submitSalesCollection() {
   if (!selectedCollectionCustomer?._id) {
     toast.error("প্রথমে Customer নির্বাচন করুন");
@@ -1370,7 +2193,7 @@ async function submitSalesCollection() {
   const amount = Number(collectionAmount);
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    toast.error("সঠিক Collection Amount লিখুন");
+    toast.error("সঠিক Payment Amount লিখুন");
     return;
   }
 
@@ -1379,45 +2202,66 @@ async function submitSalesCollection() {
   );
 
   if (amount > currentDue + 0.009) {
-    toast.error(`Customer-এর বর্তমান বকেয়া ${currentDue.toFixed(2)} টাকা`);
+    toast.error(
+      `Customer-এর বর্তমান বকেয়া ${currentDue.toFixed(2)} টাকা`
+    );
     return;
   }
-
+if (requiresCollectionAccount && !collectionAccountId) {
+  toast.error("প্রথমে একটি Account নির্বাচন করুন");
+  return;
+}
   try {
     setCollectionLoading(true);
 
-    const result = await apiRequest("/sales/collections", {
-  method: "POST",
-  body: JSON.stringify({
-    customerId: selectedCollectionCustomer._id,
-    amount,
-    paymentMethod: collectionPaymentMethod,
-    transactionId: collectionTransactionId,
-    reference: collectionReference,
-    description: collectionDescription,
-    transactionDate: collectionTransactionDate,
-  }),
-});
+    const result = await apiRequest(
+      `/customers/${selectedCollectionCustomer._id}/payments`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount,
+          paymentMethod: collectionPaymentMethod,
+          accountId: collectionAccountId || null,
+          transactionId: collectionTransactionId,
+          reference: collectionReference,
+          description: collectionDescription,
+          transactionDate: collectionTransactionDate,
+        }),
+      }
+    );
 
-    toast.success(result.message || "Collection successful");
+    toast.success(
+      result.message || "Customer Payment সফলভাবে সংরক্ষণ হয়েছে"
+    );
 
     setCollectionAmount("");
     setCollectionTransactionId("");
     setCollectionReference("");
     setCollectionDescription("");
-
+setCollectionAccountId("");
     setSelectedCollectionCustomer(null);
     setCollectionCustomerSearch("");
     setCollectionCustomerOptions([]);
     setShowCollectionCustomerOptions(false);
 
-    await loadCollectionHistory();
+    await loadCustomers();
+
   } catch (error) {
-    toast.error(error.message || "Collection failed");
+    toast.error(
+      error.message || "Customer Payment সংরক্ষণ করা যায়নি"
+    );
   } finally {
     setCollectionLoading(false);
   }
 }
+
+
+
+
+
 // Select Customer
 function selectSalesCustomer(customer) {
   setSelectedSalesCustomer(customer);
@@ -1535,8 +2379,9 @@ function resetSalesForm() {
     otherCost: "0",
     discount: "0",
     paidAmount: "0",
-    paymentMethod: "CASH",
-    paymentReference: "",
+ paymentMethod: "CASH",
+accountId: "",
+paymentReference: "",
     notes: "",
   });
 
@@ -1794,6 +2639,7 @@ const salesDueAmount = salesTotalPayable - salesPaidAmount;
 // ======================================
 
 
+
 async function saveSalesInvoice() {
   if (!selectedSalesCustomer) {
     toast.error("Customer নির্বাচন করুন");
@@ -1810,7 +2656,10 @@ async function saveSalesInvoice() {
     return;
   }
 
-  if (salesPaidAmount < 0 || salesPaidAmount > salesTotalPayable) {
+  if (
+    salesPaidAmount < 0 ||
+    salesPaidAmount > salesTotalPayable
+  ) {
     toast.error("Payment Amount সঠিক নয়");
     return;
   }
@@ -1820,50 +2669,105 @@ async function saveSalesInvoice() {
     return;
   }
 
-  // Popup আগে খুলব, যাতে browser popup blocker আটকাতে না পারে
+  // =====================================
+  // VALIDATE PAYMENT ACCOUNT
+  // =====================================
+
+  const requiresAccount =
+    salesPaidAmount > 0 &&
+    ["CASH", "BANK", "BKASH"].includes(
+      salesForm.paymentMethod
+    );
+
+  if (requiresAccount && !salesForm.accountId) {
+    toast.error("Payment Account নির্বাচন করুন");
+    return;
+  }
+
+  if (requiresAccount) {
+    const matchedAccount = accounts.find(
+      (account) =>
+        String(account._id) === String(salesForm.accountId) &&
+        account.accountType === salesForm.paymentMethod &&
+        account.isActive !== false
+    );
+
+    if (!matchedAccount) {
+      toast.error(
+        "Selected Payment Account সঠিক নয়। আবার নির্বাচন করুন।"
+      );
+      return;
+    }
+  }
+
+  // =====================================
+  // OPEN PRINT WINDOW
+  // =====================================
+
   const printWindow = window.open(
     "",
     "_blank",
     "width=420,height=700"
   );
 
+  // =====================================
+  // CREATE PAYLOAD
+  // =====================================
+
   const payload = {
     customerId: selectedSalesCustomer._id,
     invoiceDate: salesForm.invoiceDate,
+
     items: salesItems.map((item) => ({
       productId: item.productId,
       lotId: item.lotId,
       bags: Number(item.bags),
       weightKg: Number(item.weightKg),
       saleRatePerKg: Number(item.saleRatePerKg),
-      commissionRatePerKg: Number(item.commissionRatePerKg),
-      labourRatePerBag: Number(item.labourRatePerBag),
+      commissionRatePerKg: Number(
+        item.commissionRatePerKg
+      ),
+      labourRatePerBag: Number(
+        item.labourRatePerBag
+      ),
     })),
+
     otherCost: Number(salesForm.otherCost || 0),
     discount: Number(salesForm.discount || 0),
+
     paidAmount: salesPaidAmount,
     paymentMethod: salesForm.paymentMethod,
-    paymentReference: salesForm.paymentReference,
-    notes: salesForm.notes,
+
+    accountId: requiresAccount
+      ? salesForm.accountId
+      : "",
+
+    paymentReference:
+      salesForm.paymentReference || "",
+
+    notes: salesForm.notes || "",
   };
 
   try {
     setSalesSaving(true);
 
-const result = await apiRequest(
-  editingSalesInvoiceId
-    ? `/sales/${editingSalesInvoiceId}`
-    : "/sales",
-  {
-    method: editingSalesInvoiceId ? "PUT" : "POST",
-    body: JSON.stringify(payload),
-  }
-);
+    const result = await apiRequest(
+      editingSalesInvoiceId
+        ? `/sales/${editingSalesInvoiceId}`
+        : "/sales",
+      {
+        method: editingSalesInvoiceId
+          ? "PUT"
+          : "POST",
+        body: JSON.stringify(payload),
+      }
+    );
 
     const sale = result.data;
 
     toast.success(
-      result.message || "Sales Invoice সফলভাবে তৈরি হয়েছে"
+      result.message ||
+      "Sales Invoice সফলভাবে তৈরি হয়েছে"
     );
 
     // =====================================
@@ -1878,31 +2782,38 @@ const result = await apiRequest(
         });
 
       const escapeHTML = (value) =>
-        String(value ?? "").replace(/[&<>"']/g, (char) => ({
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;",
-        })[char]);
+        String(value ?? "").replace(
+          /[&<>"']/g,
+          (char) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          })[char]
+        );
 
       const invoiceDate = sale.invoiceDate
-        ? new Date(sale.invoiceDate).toLocaleDateString("en-GB")
+        ? new Date(sale.invoiceDate).toLocaleDateString(
+            "en-GB"
+          )
         : "";
 
       const itemRows = (sale.items || [])
-        .map((item) => `
-          <tr>
-            <td>
-              <strong>${escapeHTML(item.productName)}</strong>
-              <small>${escapeHTML(item.lotCode || "")}</small>
-            </td>
-            <td class="center">${Number(item.bags || 0)}</td>
-            <td class="right">${money(item.weightKg)}</td>
-            <td class="right">${money(item.saleRatePerKg)}</td>
-            <td class="right">${money(item.lineTotal)}</td>
-          </tr>
-        `)
+        .map(
+          (item) => `
+            <tr>
+              <td>
+                <strong>${escapeHTML(item.productName)}</strong>
+                <small>${escapeHTML(item.lotCode || "")}</small>
+              </td>
+              <td class="center">${Number(item.bags || 0)}</td>
+              <td class="right">${money(item.weightKg)}</td>
+              <td class="right">${money(item.saleRatePerKg)}</td>
+              <td class="right">${money(item.lineTotal)}</td>
+            </tr>
+          `
+        )
         .join("");
 
       printWindow.document.open();
@@ -2093,15 +3004,21 @@ const result = await apiRequest(
 
             <div class="customer">
               <strong>${escapeHTML(sale.customerName)}</strong>
-              ${sale.companyName
-                ? `<div>${escapeHTML(sale.companyName)}</div>`
-                : ""}
-              ${sale.customerMobile
-                ? `<div>Mobile: ${escapeHTML(sale.customerMobile)}</div>`
-                : ""}
-              ${sale.customerAddress
-                ? `<div>Address: ${escapeHTML(sale.customerAddress)}</div>`
-                : ""}
+              ${
+                sale.companyName
+                  ? `<div>${escapeHTML(sale.companyName)}</div>`
+                  : ""
+              }
+              ${
+                sale.customerMobile
+                  ? `<div>Mobile: ${escapeHTML(sale.customerMobile)}</div>`
+                  : ""
+              }
+              ${
+                sale.customerAddress
+                  ? `<div>Address: ${escapeHTML(sale.customerAddress)}</div>`
+                  : ""
+              }
             </div>
 
             <table>
@@ -2197,7 +3114,7 @@ const result = await apiRequest(
     }
 
     // =====================================
-    // EXISTING RESET AND RELOAD
+    // RESET AND RELOAD
     // =====================================
 
     setShowSalesForm(false);
@@ -2214,12 +3131,15 @@ const result = await apiRequest(
     }
 
     toast.error(
-      error.message || "Sales Invoice তৈরি করা যায়নি"
+      error.message ||
+      "Sales Invoice তৈরি করা যায়নি"
     );
+
   } finally {
     setSalesSaving(false);
   }
 }
+
 
 
 // Open New Sales Invoice
@@ -2256,6 +3176,7 @@ async function loadSalesReturnDetails(invoiceId) {
     setSelectedSalesReturn(null);
     setSalesReturnItems([]);
     setSalesReturnRefundMethod("CASH");
+    setSalesReturnRefundAccountId("");
     setSalesReturnNotes("");
 
     const result = await apiRequest(
@@ -2380,6 +3301,15 @@ async function submitSalesReturn() {
       return;
     }
 
+    if (
+  salesReturnCalculation.refundAmount > 0 &&
+  ["CASH", "BANK", "BKASH"].includes(salesReturnRefundMethod) &&
+  !salesReturnRefundAccountId
+) {
+  toast.error("Refund Account নির্বাচন করুন");
+  return;
+}
+
     const confirmed = window.confirm(
       `আপনি কি Sales Return Confirm করতে চান?\n\n` +
       `Return Amount: ৳${salesReturnCalculation.returnAmount.toFixed(2)}\n` +
@@ -2394,11 +3324,12 @@ async function submitSalesReturn() {
     const result = await apiRequest("/sales-returns", {
       method: "POST",
       body: JSON.stringify({
-        saleId: selectedSalesReturn._id,
-        items: returnItems,
-        refundMethod: salesReturnRefundMethod,
-        notes: salesReturnNotes.trim(),
-      }),
+  saleId: selectedSalesReturn._id,
+  items: returnItems,
+  refundMethod: salesReturnRefundMethod,
+  refundAccountId: salesReturnRefundAccountId,
+  notes: salesReturnNotes.trim(),
+}),
     });
 
     toast.success(
@@ -2619,8 +3550,9 @@ setSelectedSalesCustomer(selectedCustomer);
       otherCost: String(invoice.otherCost || 0),
       discount: String(invoice.discount || 0),
       paidAmount: String(invoice.paidAmount || 0),
-      paymentMethod: invoice.paymentMethod || "CASH",
-      paymentReference: invoice.paymentReference || "",
+paymentMethod: invoice.paymentMethod || "CASH",
+accountId: invoice.accountId || "",
+paymentReference: invoice.paymentReference || "",
       notes: invoice.notes || "",
     });
 
@@ -3709,12 +4641,15 @@ const deactivateCategory = async (id) => {
 // ======================================
 // OPEN SUPPLIER PAYMENT FORM
 // ======================================
+
+
 function openSupplierPayment(supplier) {
   setPaymentSupplier(supplier);
-
+  loadAccounts();
   setPaymentForm({
     amount: "",
     paymentMethod: "CASH",
+    accountId: "",
     transactionId: "",
     transactionDate: new Date().toISOString().split("T")[0],
     notes: "",
@@ -3723,12 +4658,35 @@ function openSupplierPayment(supplier) {
   setShowPaymentForm(true);
 }
 
+
+// LOAD ACTIVE ACCOUNTS FOR CUSTOMER COLLECTION
+async function loadCustomerCollectionAccounts() {
+  try {
+    setCustomerCollectionAccountsLoading(true);
+
+    const result = await apiRequest("/accounts");
+
+    const activeAccounts = (result.data || []).filter(
+      (account) => account.isActive !== false
+    );
+
+    setCustomerCollectionAccounts(activeAccounts);
+  } catch (error) {
+    toast.error(error.message || "Account List লোড করা যায়নি");
+  } finally {
+    setCustomerCollectionAccountsLoading(false);
+  }
+}
+
+
 function openCustomerPayment(customer) {
+  loadCustomerCollectionAccounts();
   setPaymentCustomer(customer);
 
   setCustomerPaymentForm({
     amount: "",
     paymentMethod: "CASH",
+    accountId: "",
     transactionId: "",
     transactionDate: new Date().toISOString().split("T")[0],
     notes: "",
@@ -3778,13 +4736,15 @@ async function submitSupplierPayment(e) {
     setShowPaymentForm(false);
     setPaymentSupplier(null);
 
-    setPaymentForm({
-      amount: "",
-      paymentMethod: "CASH",
-      transactionId: "",
-      transactionDate: new Date().toISOString().split("T")[0],
-      notes: "",
-    });
+
+setPaymentForm({
+  amount: "",
+  paymentMethod: "CASH",
+  accountId: "",
+  transactionId: "",
+  transactionDate: new Date().toISOString().split("T")[0],
+  notes: "",
+});
 
   } catch (error) {
     toast.error(error.message || "Payment সংরক্ষণ করা যায়নি");
@@ -3792,6 +4752,10 @@ async function submitSupplierPayment(e) {
     setPaymentLoading(false);
   }
 }
+
+
+
+
 async function submitCustomerPayment(e) {
   e.preventDefault();
 
@@ -3834,6 +4798,7 @@ async function submitCustomerPayment(e) {
     setCustomerPaymentForm({
       amount: "",
       paymentMethod: "CASH",
+      accountId: "",
       transactionId: "",
       transactionDate: new Date().toISOString().split("T")[0],
       notes: "",
@@ -3847,6 +4812,9 @@ async function submitCustomerPayment(e) {
   }
 }
 // OPEN PAYMENT HISTORY
+
+
+
 function openPaymentHistory(item) {
   if (!item || item.type !== "PAYMENT") {
     toast.error("Payment তথ্য পাওয়া যায়নি");
@@ -3860,7 +4828,8 @@ function openPaymentHistory(item) {
 // ======================================
 // OPEN PAYMENT EDIT
 // ======================================
-function openPaymentEdit(item, supplier) {
+
+async function openPaymentEdit(item, supplier) {
   if (!item || item.type !== "PAYMENT" || item.isVoided) {
     toast.error("এই Payment Edit করা যাবে না");
     return;
@@ -3868,26 +4837,63 @@ function openPaymentEdit(item, supplier) {
 
   const paymentDate = item.transactionDate || item.createdAt;
 
-  setEditingPayment(item);
+  try {
+    await loadSupplierPaymentAccounts();
 
-  setPaymentEditForm({
-    amount: String(item.amount || item.credit || ""),
-    paymentMethod: item.paymentMethod || "CASH",
-    transactionId: item.transactionId || "",
-    transactionDate: paymentDate
-      ? new Date(paymentDate).toISOString().split("T")[0]
-      : "",
-    description: item.description || "",
-    supplierId: String(supplier?._id || ledgerSupplier?._id || ""),
-    reason: "",
-  });
+    const accountId =
+      typeof item.accountId === "object" && item.accountId !== null
+        ? item.accountId._id
+        : item.accountId || "";
 
-  setShowPaymentEdit(true);
+    setEditingPayment(item);
+
+    setPaymentEditForm({
+      amount: String(item.amount || item.credit || ""),
+      paymentMethod: item.paymentMethod || "CASH",
+      accountId: String(accountId),
+      transactionId: item.transactionId || "",
+      transactionDate: paymentDate
+        ? new Date(paymentDate).toISOString().split("T")[0]
+        : "",
+      description: item.description || "",
+      supplierId: String(
+        supplier?._id || ledgerSupplier?._id || ""
+      ),
+      reason: "",
+    });
+
+    setShowPaymentEdit(true);
+  } catch (error) {
+    toast.error(error.message || "Payment Account লোড করা যায়নি");
+  }
+}
+
+
+
+async function loadSupplierPaymentAccounts() {
+  try {
+    setSupplierPaymentAccountsLoading(true);
+
+    const result = await apiRequest("/accounts");
+
+    const accountList = Array.isArray(result)
+      ? result
+      : result.accounts || result.data || [];
+
+    setSupplierPaymentAccounts(accountList);
+  } catch (error) {
+    toast.error(error.message || "Accounts লোড করা যায়নি");
+    throw error;
+  } finally {
+    setSupplierPaymentAccountsLoading(false);
+  }
 }
 
 // ======================================
 // SUBMIT PAYMENT EDIT
 // ======================================
+
+
 async function submitPaymentEdit(e) {
   e.preventDefault();
 
@@ -3897,19 +4903,29 @@ async function submitPaymentEdit(e) {
   }
 
   const amount = Number(paymentEditForm.amount);
+  const reason = paymentEditForm.reason?.trim();
 
   if (!amount || amount <= 0) {
     toast.error("সঠিক Payment Amount দিন");
     return;
   }
 
-  if (!paymentEditForm.reason.trim()) {
+  if (!reason) {
     toast.error("Correction Reason লিখুন");
     return;
   }
 
   if (!paymentEditForm.transactionDate) {
     toast.error("Payment Date নির্বাচন করুন");
+    return;
+  }
+
+  const requiresAccount = ["CASH", "BANK", "BKASH"].includes(
+    paymentEditForm.paymentMethod
+  );
+
+  if (requiresAccount && !paymentEditForm.accountId) {
+    toast.error("Payment Account নির্বাচন করুন");
     return;
   }
 
@@ -3926,17 +4942,20 @@ async function submitPaymentEdit(e) {
         body: JSON.stringify({
           amount,
           paymentMethod: paymentEditForm.paymentMethod,
-          transactionId: paymentEditForm.transactionId,
+          accountId: requiresAccount
+            ? paymentEditForm.accountId
+            : "",
+          transactionId: paymentEditForm.transactionId || "",
           transactionDate: paymentEditForm.transactionDate,
-          notes: paymentEditForm.description,
+          description: paymentEditForm.description || "",
           supplierId: paymentEditForm.supplierId,
-          reason: paymentEditForm.reason,
+          reason,
         }),
       }
     );
 
     toast.success(
-      result.message || "Payment Correction সফল হয়েছে"
+      result.message || "Supplier Payment Correction সফল হয়েছে"
     );
 
     setShowPaymentEdit(false);
@@ -3945,11 +4964,16 @@ async function submitPaymentEdit(e) {
     await loadSupplierLedger(ledgerSupplier);
 
   } catch (error) {
-    toast.error(error.message || "Payment Correction করা যায়নি");
+    toast.error(
+      error.message || "Payment Correction করা যায়নি"
+    );
   } finally {
     setPaymentEditLoading(false);
   }
 }
+
+
+
 
 async function submitCustomerPaymentEdit(e) {
   e.preventDefault();
@@ -3989,6 +5013,7 @@ async function submitCustomerPaymentEdit(e) {
         body: JSON.stringify({
           amount,
           paymentMethod: customerPaymentEditForm.paymentMethod,
+          accountId: customerPaymentEditForm.accountId || null,
           transactionId: customerPaymentEditForm.transactionId,
           reference: customerPaymentEditForm.reference,
           transactionDate: customerPaymentEditForm.transactionDate,
@@ -4026,6 +5051,7 @@ async function submitCustomerPaymentEdit(e) {
     setCustomerPaymentEditLoading(false);
   }
 }
+
 
 // ======================================
 // OPEN PAYMENT VOID
@@ -4786,7 +5812,32 @@ async function loadPurchasePaymentReport() {
 // SUPPLIER PAYMENT MODAL
 // ======================================
 
+
 function renderSupplierPaymentModal() {
+  const paymentInputStyle = {
+    ...inputStyle,
+    width: "100%",
+    marginTop: 7,
+    borderRadius: 9,
+    minHeight: 43,
+    boxSizing: "border-box",
+  };
+
+  const sectionTitleStyle = {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#334155",
+    margin: "0 0 13px",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+    marginTop: 14,
+  };
+
   return (
     <div style={modalOverlayStyle}>
       <div
@@ -4794,12 +5845,33 @@ function renderSupplierPaymentModal() {
           ...modalStyle,
           maxWidth: 560,
           width: "95%",
+          borderRadius: 16,
+          overflow: "hidden",
+          padding: 0,
         }}
       >
-        <div style={modalHeaderStyle}>
+        {/* HEADER */}
+        <div
+          style={{
+            padding: "20px 22px",
+            background: "#fff",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <div>
-            <h2>Supplier Payment</h2>
-            <p style={{ margin: "5px 0 0", color: "#64748b" }}>
+            <h2 style={{ margin: 0, fontSize: 21, color: "#1e293b" }}>
+              Supplier Payment
+            </h2>
+            <p
+              style={{
+                margin: "5px 0 0",
+                fontSize: 13,
+                color: "#64748b",
+              }}
+            >
               Record supplier payment
             </p>
           </div>
@@ -4807,147 +5879,262 @@ function renderSupplierPaymentModal() {
           <button
             type="button"
             onClick={() => setShowPaymentForm(false)}
+            style={{
+              border: "none",
+              background: "#f1f5f9",
+              borderRadius: 9,
+              width: 36,
+              height: 36,
+              cursor: "pointer",
+              color: "#475569",
+            }}
           >
-            <X size={20} />
+            <X size={19} />
           </button>
         </div>
 
         <form onSubmit={submitSupplierPayment}>
-          <div style={{ padding: 20 }}>
-
-            {/* Supplier Information */}
+          <div
+            style={{
+              padding: 22,
+              maxHeight: "70vh",
+              overflowY: "auto",
+            }}
+          >
+            {/* SUPPLIER INFORMATION */}
             <div
               style={{
+                padding: 17,
                 background: "#f8fafc",
                 border: "1px solid #e2e8f0",
-                borderRadius: 10,
-                padding: 15,
-                marginBottom: 20,
+                borderRadius: 12,
               }}
             >
-              <h3
-                style={{
-                  margin: "0 0 12px",
-                  fontSize: 15,
-                  color: "#334155",
-                }}
-              >
+              <h3 style={sectionTitleStyle}>
                 Supplier Information
               </h3>
 
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ color: "#64748b", fontSize: 13 }}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: "#64748b" }}>
                   Supplier Name
-                </span>
-                <div style={{ fontWeight: 600, color: "#1e293b" }}>
-                  {paymentSupplier?.supplierName || "N/A"}
                 </div>
+                <strong style={{ color: "#1e293b", fontSize: 16 }}>
+                  {paymentSupplier?.supplierName || "-"}
+                </strong>
               </div>
 
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ color: "#64748b", fontSize: 13 }}>
-                  Address
-                </span>
-                <div style={{ color: "#334155" }}>
-                  {paymentSupplier?.address || "N/A"}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    Address
+                  </div>
+                  <div style={{ fontSize: 14, color: "#334155" }}>
+                    {paymentSupplier?.address || "-"}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <span style={{ color: "#64748b", fontSize: 13 }}>
-                  Mobile
-                </span>
-                <div style={{ color: "#334155" }}>
-                  {paymentSupplier?.mobile || "N/A"}
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    Mobile Number
+                  </div>
+                  <div style={{ fontSize: 14, color: "#334155" }}>
+                    {paymentSupplier?.mobile || "-"}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Payment Amount */}
-            <label>Payment Amount (৳)</label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              placeholder="Enter payment amount"
-              style={inputStyle}
-              value={paymentForm.amount}
-              onChange={(e) =>
-                setPaymentForm({
-                  ...paymentForm,
-                  amount: e.target.value,
-                })
-              }
-            />
+            {/* PAYMENT DETAILS */}
+            <div style={{ marginTop: 22 }}>
+              <h3 style={sectionTitleStyle}>
+                Payment Details
+              </h3>
 
-            {/* Payment Method */}
-            <label>Payment Method</label>
-            <select
-              style={inputStyle}
-              value={paymentForm.paymentMethod}
-              onChange={(e) =>
-                setPaymentForm({
-                  ...paymentForm,
-                  paymentMethod: e.target.value,
-                })
-              }
-            >
-              <option value="CASH">Cash</option>
-              <option value="BANK">Bank</option>
-              <option value="BKASH">bKash</option>
-              <option value="NAGAD">Nagad</option>
-              <option value="ROCKET">Rocket</option>
-              <option value="OTHER">Other</option>
-            </select>
+              <label style={labelStyle}>
+                Payment Amount (৳)
+              </label>
 
-            {/* Transaction Date */}
-            <label>Transaction Date</label>
-            <input
-              type="date"
-              required
-              style={inputStyle}
-              value={paymentForm.transactionDate}
-              onChange={(e) =>
-                setPaymentForm({
-                  ...paymentForm,
-                  transactionDate: e.target.value,
-                })
-              }
-            />
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+                placeholder="Enter payment amount"
+                style={{
+                  ...paymentInputStyle,
+                  fontSize: 19,
+                  fontWeight: 700,
+                  color: "#15803d",
+                  minHeight: 50,
+                }}
+                value={paymentForm.amount}
+                onChange={(e) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    amount: e.target.value,
+                  })
+                }
+              />
 
-            {/* Transaction ID */}
-            <label>Transaction ID</label>
-            <input
-              type="text"
-              style={inputStyle}
-              placeholder="Auto Generated on Save"
-              value={paymentForm.transactionId}
-              onChange={(e) =>
-                setPaymentForm({
-                  ...paymentForm,
-                  transactionId: e.target.value,
-                })
-              }
-            />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 14,
+                }}
+              >
+                <div>
+                  <label style={labelStyle}>
+                    Payment Method
+                  </label>
 
-            {/* Notes */}
-            <label>Notes</label>
-            <textarea
-              style={inputStyle}
-              rows="3"
-              placeholder="Payment notes..."
-              value={paymentForm.notes}
-              onChange={(e) =>
-                setPaymentForm({
-                  ...paymentForm,
-                  notes: e.target.value,
-                })
-              }
-            />
+                  <select
+                    style={paymentInputStyle}
+                    value={paymentForm.paymentMethod}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        paymentMethod: e.target.value,
+                        accountId: "",
+                      })
+                    }
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="BANK">Bank</option>
+                    <option value="BKASH">bKash</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Transaction Date
+                  </label>
+
+                  <input
+                    type="date"
+                    required
+                    style={paymentInputStyle}
+                    value={paymentForm.transactionDate}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        transactionDate: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* PAYMENT ACCOUNT */}
+              {["CASH", "BANK", "BKASH"].includes(paymentForm.paymentMethod) && (
+                <div>
+                  <label style={labelStyle}>
+                    Payment Account
+                  </label>
+
+                  <select
+                    style={paymentInputStyle}
+                    value={paymentForm.accountId}
+                    onChange={(e) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        accountId: e.target.value,
+                      })
+                    }
+                    disabled={accountLoading}
+                    required
+                  >
+                    <option value="">
+                      {accountLoading
+                        ? "Loading Accounts..."
+                        : "Select Account"}
+                    </option>
+
+                    {accounts
+                      .filter(
+                        (account) =>
+                          account.isActive !== false &&
+                          account.accountType === paymentForm.paymentMethod
+                      )
+                      .map((account) => (
+                        <option key={account._id} value={account._id}>
+                          {account.accountName}
+                          {account.bankName ? ` - ${account.bankName}` : ""}
+                          {account.accountNumber
+                            ? ` (${account.accountNumber})`
+                            : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* TRANSACTION ID */}
+              <label style={labelStyle}>
+                Transaction ID
+              </label>
+
+              <div
+                style={{
+                  ...paymentInputStyle,
+                  minHeight: 43,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0 12px",
+                  background: "#f1f5f9",
+                  color: "#64748b",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <span>Auto Generated on Save</span>
+                <span style={{ fontSize: 11 }}>
+                  AUTO
+                </span>
+              </div>
+
+              {/* NOTES */}
+              <label style={labelStyle}>
+                Notes
+              </label>
+
+              <textarea
+                style={{
+                  ...paymentInputStyle,
+                  minHeight: 85,
+                  resize: "vertical",
+                }}
+                rows="3"
+                placeholder="Write payment notes..."
+                value={paymentForm.notes}
+                onChange={(e) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    notes: e.target.value,
+                  })
+                }
+              />
+            </div>
           </div>
 
-          <div style={modalFooterStyle}>
+          {/* FOOTER */}
+          <div
+            style={{
+              padding: "16px 22px",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+              background: "#fff",
+              flexWrap: "wrap",
+            }}
+          >
             <button
               type="button"
               className="secondary-button"
@@ -4959,7 +6146,7 @@ function renderSupplierPaymentModal() {
             <button
               type="submit"
               className="primary-button"
-              disabled={paymentLoading}
+              disabled={paymentLoading || accountLoading}
             >
               {paymentLoading ? "Saving..." : "Save Payment"}
             </button>
@@ -4969,6 +6156,7 @@ function renderSupplierPaymentModal() {
     </div>
   );
 }
+
 
 
 function renderCustomerPaymentModal() {
@@ -5189,6 +6377,58 @@ function renderCustomerPaymentModal() {
                   />
                 </div>
               </div>
+
+
+{/* SELECT ACCOUNT FOR CUSTOMER COLLECTION */}
+<label style={labelStyle}>
+  টাকা কোন Account-এ জমা হবে?
+</label>
+
+<select
+  required
+  style={inputStyle}
+  value={customerPaymentEditForm.accountId}
+  onChange={(e) =>
+    setCustomerPaymentEditForm((prev) => ({
+      ...prev,
+      accountId: e.target.value,
+    }))
+  }
+>
+  <option value="">
+    Select {customerPaymentEditForm.paymentMethod} Account
+  </option>
+
+  {customerCollectionAccounts
+    .filter(
+      (account) =>
+        account.accountType ===
+          customerPaymentEditForm.paymentMethod &&
+        account.isActive !== false
+    )
+    .map((account) => (
+      <option key={account._id} value={account._id}>
+        {account.accountName} ({account.accountType})
+      </option>
+    ))}
+</select>
+
+{customerCollectionAccountsLoading && (
+  <p style={{ fontSize: 12, color: "#64748b" }}>
+    Account লোড হচ্ছে...
+  </p>
+)}
+
+{!customerCollectionAccountsLoading &&
+  customerCollectionAccounts.filter(
+    (account) =>
+      account.accountType === customerPaymentForm.paymentMethod
+  ).length === 0 && (
+    <p style={{ fontSize: 12, color: "#dc2626" }}>
+      এই Payment Method-এর কোনো Active Account পাওয়া যায়নি।
+    </p>
+  )}
+
 
               {/* AUTO TRANSACTION ID */}
               <label style={labelStyle}>
@@ -6585,11 +7825,17 @@ function renderCustomerLedgerModal() {
                                     }}
                                     onClick={() => {
                                       setEditingCustomerPayment(item);
+                                      loadSalesCollectionAccounts();
 
+const selectedAccountId =
+  item.accountId?._id || item.accountId || "";
+loadCustomerCollectionAccounts();
                                       setCustomerPaymentEditForm({
-                                        amount: item.amount || item.credit || "",
-                                        paymentMethod: item.paymentMethod || "CASH",
-                                        transactionId: item.transactionId || "",
+                            amount: item.amount || item.credit || "",
+paymentMethod: item.paymentMethod || "CASH",
+
+accountId: item.accountId?._id || item.accountId || "",
+transactionId: item.transactionId || "",
                                         reference: item.reference || "",
                                         transactionDate: item.transactionDate
                                           ? new Date(item.transactionDate).toISOString().slice(0, 10)
@@ -7340,30 +8586,115 @@ function renderSupplierStatementModal() {
 
 
 
+
+
 function renderPaymentEditModal() {
+  const paymentInputStyle = {
+    ...inputStyle,
+    width: "100%",
+    marginTop: 7,
+    borderRadius: 9,
+    minHeight: 43,
+    boxSizing: "border-box",
+  };
+
+  const sectionTitleStyle = {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#334155",
+    margin: "0 0 13px",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+    marginTop: 14,
+  };
+
+  const selectedSupplier = suppliers.find(
+    (supplier) =>
+      String(supplier._id) === String(paymentEditForm.supplierId)
+  );
+
   return (
     <div style={modalOverlayStyle}>
-      <div style={{ ...modalStyle, maxWidth: 650, width: "95%" }}>
-        <div style={modalHeaderStyle}>
+      <div
+        style={{
+          ...modalStyle,
+          maxWidth: 560,
+          width: "95%",
+          borderRadius: 16,
+          overflow: "hidden",
+          padding: 0,
+        }}
+      >
+        {/* HEADER */}
+        <div
+          style={{
+            padding: "20px 22px",
+            background: "#fff",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <div>
-            <h2>Edit Supplier Payment</h2>
-            <p>Payment Correction</p>
+            <h2 style={{ margin: 0, fontSize: 21, color: "#1e293b" }}>
+              Edit Supplier Payment
+            </h2>
+            <p style={{ margin: "5px 0 0", fontSize: 13, color: "#64748b" }}>
+              Correct supplier payment information
+            </p>
           </div>
 
           <button
             type="button"
             onClick={() => setShowPaymentEdit(false)}
+            disabled={paymentEditLoading}
+            style={{
+              border: "none",
+              background: "#f1f5f9",
+              borderRadius: 9,
+              width: 36,
+              height: 36,
+              cursor: "pointer",
+              color: "#475569",
+            }}
           >
-            <X size={20} />
+            <X size={19} />
           </button>
         </div>
 
         <form onSubmit={submitPaymentEdit}>
-          <div style={{ padding: 20 }}>
-            <div style={{ marginBottom: 15 }}>
-              <label>Supplier</label>
+          <div
+            style={{
+              padding: 22,
+              maxHeight: "70vh",
+              overflowY: "auto",
+            }}
+          >
+            {/* SUPPLIER INFORMATION */}
+            <div
+              style={{
+                padding: 17,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: 12,
+              }}
+            >
+              <h3 style={sectionTitleStyle}>
+                Supplier Information
+              </h3>
+
+              <label style={labelStyle}>
+                Select Supplier
+              </label>
+
               <select
-                style={inputStyle}
+                style={paymentInputStyle}
                 value={paymentEditForm.supplierId}
                 onChange={(e) =>
                   setPaymentEditForm((prev) => ({
@@ -7382,15 +8713,67 @@ function renderPaymentEditModal() {
                   </option>
                 ))}
               </select>
+
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  Supplier Name
+                </div>
+                <strong style={{ color: "#1e293b", fontSize: 16 }}>
+                  {selectedSupplier?.supplierName || "-"}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                  marginTop: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    Address
+                  </div>
+                  <div style={{ fontSize: 14, color: "#334155" }}>
+                    {selectedSupplier?.address || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    Mobile Number
+                  </div>
+                  <div style={{ fontSize: 14, color: "#334155" }}>
+                    {selectedSupplier?.mobile || "-"}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Payment Amount (৳)</label>
+            {/* PAYMENT DETAILS */}
+            <div style={{ marginTop: 22 }}>
+              <h3 style={sectionTitleStyle}>
+                Payment Details
+              </h3>
+
+              <label style={labelStyle}>
+                Payment Amount (৳)
+              </label>
+
               <input
                 type="number"
                 min="0.01"
                 step="0.01"
-                style={inputStyle}
+                required
+                placeholder="Enter payment amount"
+                style={{
+                  ...paymentInputStyle,
+                  fontSize: 19,
+                  fontWeight: 700,
+                  color: "#15803d",
+                  minHeight: 50,
+                }}
                 value={paymentEditForm.amount}
                 onChange={(e) =>
                   setPaymentEditForm((prev) => ({
@@ -7398,53 +8781,114 @@ function renderPaymentEditModal() {
                     amount: e.target.value,
                   }))
                 }
-                required
               />
-            </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Payment Date</label>
-              <input
-                type="date"
-                style={inputStyle}
-                value={paymentEditForm.transactionDate}
-                onChange={(e) =>
-                  setPaymentEditForm((prev) => ({
-                    ...prev,
-                    transactionDate: e.target.value,
-                  }))
-                }
-                required
-              />
-            </div>
-
-            <div style={{ marginBottom: 15 }}>
-              <label>Payment Method</label>
-              <select
-                style={inputStyle}
-                value={paymentEditForm.paymentMethod}
-                onChange={(e) =>
-                  setPaymentEditForm((prev) => ({
-                    ...prev,
-                    paymentMethod: e.target.value,
-                  }))
-                }
-                required
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 14,
+                }}
               >
-                <option value="CASH">Cash</option>
-                <option value="BANK">Bank</option>
-                <option value="BKASH">bKash</option>
-                <option value="NAGAD">Nagad</option>
-                <option value="ROCKET">Rocket</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
+                <div>
+                  <label style={labelStyle}>
+                    Payment Method
+                  </label>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Transaction ID / Reference</label>
+                  <select
+                    style={paymentInputStyle}
+                    value={paymentEditForm.paymentMethod}
+                    onChange={(e) =>
+                      setPaymentEditForm((prev) => ({
+                        ...prev,
+                        paymentMethod: e.target.value,
+                        accountId: "",
+                      }))
+                    }
+                    required
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="BANK">Bank</option>
+                    <option value="BKASH">bKash</option>
+                    
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Transaction Date
+                  </label>
+
+                  <input
+                    type="date"
+                    required
+                    style={paymentInputStyle}
+                    value={paymentEditForm.transactionDate}
+                    onChange={(e) =>
+                      setPaymentEditForm((prev) => ({
+                        ...prev,
+                        transactionDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* PAYMENT ACCOUNT */}
+              {["CASH", "BANK", "BKASH"].includes(
+                paymentEditForm.paymentMethod
+              ) && (
+                <div>
+                  <label style={labelStyle}>
+                    Payment Account
+                  </label>
+
+                  <select
+                    style={paymentInputStyle}
+                    value={paymentEditForm.accountId}
+                    onChange={(e) =>
+                      setPaymentEditForm((prev) => ({
+                        ...prev,
+                        accountId: e.target.value,
+                      }))
+                    }
+                    disabled={supplierPaymentAccountsLoading}
+                    required
+                  >
+                    <option value="">
+                      {supplierPaymentAccountsLoading
+                        ? "Loading Accounts..."
+                        : "Select Account"}
+                    </option>
+
+                    {supplierPaymentAccounts
+                      .filter(
+                        (account) =>
+                          account.isActive !== false &&
+                          account.accountType === paymentEditForm.paymentMethod
+                      )
+                      .map((account) => (
+                        <option key={account._id} value={account._id}>
+                          {account.accountName}
+                          {account.bankName ? ` - ${account.bankName}` : ""}
+                          {account.accountNumber
+                            ? ` (${account.accountNumber})`
+                            : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* TRANSACTION ID */}
+              <label style={labelStyle}>
+                Transaction ID / Reference
+              </label>
+
               <input
                 type="text"
-                style={inputStyle}
+                style={paymentInputStyle}
+                placeholder="Enter transaction ID"
                 value={paymentEditForm.transactionId}
                 onChange={(e) =>
                   setPaymentEditForm((prev) => ({
@@ -7453,13 +8897,20 @@ function renderPaymentEditModal() {
                   }))
                 }
               />
-            </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Notes</label>
+              {/* NOTES */}
+              <label style={labelStyle}>
+                Notes
+              </label>
+
               <textarea
-                style={inputStyle}
+                style={{
+                  ...paymentInputStyle,
+                  minHeight: 85,
+                  resize: "vertical",
+                }}
                 rows="3"
+                placeholder="Write payment notes..."
                 value={paymentEditForm.description}
                 onChange={(e) =>
                   setPaymentEditForm((prev) => ({
@@ -7468,12 +8919,19 @@ function renderPaymentEditModal() {
                   }))
                 }
               />
-            </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Correction Reason *</label>
+              {/* CORRECTION REASON */}
+              <label style={labelStyle}>
+                Correction Reason *
+              </label>
+
               <textarea
-                style={inputStyle}
+                style={{
+                  ...paymentInputStyle,
+                  minHeight: 85,
+                  resize: "vertical",
+                  borderColor: "#f59e0b",
+                }}
                 rows="3"
                 placeholder="Why are you correcting this payment?"
                 value={paymentEditForm.reason}
@@ -7485,23 +8943,36 @@ function renderPaymentEditModal() {
                 }
                 required
               />
-            </div>
 
-            <div
-              style={{
-                background: "#fff7ed",
-                color: "#9a3412",
-                padding: 12,
-                borderRadius: 6,
-                fontSize: 13,
-              }}
-            >
-              Payment পরিবর্তন করলে পুরোনো ও নতুন Supplier-এর Ledger
-              Balance পুনরায় হিসাব করা হবে।
+              <div
+                style={{
+                  background: "#fff7ed",
+                  color: "#9a3412",
+                  padding: 12,
+                  borderRadius: 9,
+                  fontSize: 13,
+                  marginTop: 15,
+                  border: "1px solid #fed7aa",
+                }}
+              >
+                <strong>Important:</strong> Payment Correction করলে
+                Supplier Ledger এবং Account Ledger পুনরায় হিসাব করা হবে।
+              </div>
             </div>
           </div>
 
-          <div style={modalFooterStyle}>
+          {/* FOOTER */}
+          <div
+            style={{
+              padding: "16px 22px",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+              background: "#fff",
+              flexWrap: "wrap",
+            }}
+          >
             <button
               type="button"
               className="secondary-button"
@@ -7514,7 +8985,7 @@ function renderPaymentEditModal() {
             <button
               type="submit"
               className="primary-button"
-              disabled={paymentEditLoading}
+              disabled={paymentEditLoading || supplierPaymentAccountsLoading}
             >
               {paymentEditLoading ? "Saving..." : "Save Correction"}
             </button>
@@ -7525,33 +8996,194 @@ function renderPaymentEditModal() {
   );
 }
 
+
+
 function renderCustomerPaymentEditModal() {
+  const paymentInputStyle = {
+    ...inputStyle,
+    width: "100%",
+    marginTop: 7,
+    borderRadius: 9,
+    minHeight: 43,
+  };
+
+  const sectionTitleStyle = {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#334155",
+    margin: "0 0 13px",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+    marginTop: 14,
+  };
+
+  const accountRequiredMethods = ["CASH", "BANK", "BKASH"];
+
+  const needsAccount = accountRequiredMethods.includes(
+    customerPaymentEditForm.paymentMethod
+  );
+
+  const filteredEditAccounts = customerCollectionAccounts.filter(
+    (account) =>
+      account.accountType === customerPaymentEditForm.paymentMethod &&
+      account.isActive !== false
+  );
+
   return (
     <div style={modalOverlayStyle}>
-      <div style={{ ...modalStyle, maxWidth: 650, width: "95%" }}>
-        <div style={modalHeaderStyle}>
+      <div
+        style={{
+          ...modalStyle,
+          maxWidth: 560,
+          width: "95%",
+          borderRadius: 16,
+          overflow: "hidden",
+          padding: 0,
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* HEADER */}
+        <div
+          style={{
+            padding: "20px 22px",
+            background: "#fff",
+            borderBottom: "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+          }}
+        >
           <div>
-            <h2>Edit Customer Payment</h2>
-            <p>Customer Payment Correction</p>
+            <h2 style={{ margin: 0, fontSize: 21, color: "#1e293b" }}>
+              Edit Customer Payment
+            </h2>
+            <p
+              style={{
+                margin: "5px 0 0",
+                fontSize: 13,
+                color: "#64748b",
+              }}
+            >
+              Correct customer payment information
+            </p>
           </div>
 
           <button
             type="button"
             onClick={() => setShowCustomerPaymentEdit(false)}
+            disabled={customerPaymentEditLoading}
+            style={{
+              border: "none",
+              background: "#f1f5f9",
+              borderRadius: 9,
+              width: 36,
+              height: 36,
+              cursor: "pointer",
+              color: "#475569",
+            }}
           >
-            <X size={20} />
+            <X size={19} />
           </button>
         </div>
 
-        <form onSubmit={submitCustomerPaymentEdit}>
-          <div style={{ padding: 20 }}>
-            <div style={{ marginBottom: 15 }}>
-              <label>Payment Amount (৳)</label>
+        <form
+          onSubmit={submitCustomerPaymentEdit}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            flex: 1,
+          }}
+        >
+          <div
+            style={{
+              padding: 22,
+              maxHeight: "70vh",
+              overflowY: "auto",
+              flex: 1,
+            }}
+          >
+            {/* CUSTOMER INFORMATION */}
+            <div
+              style={{
+                padding: 17,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: 12,
+              }}
+            >
+              <h3 style={sectionTitleStyle}>
+                Customer Information
+              </h3>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: "#64748b" }}>
+                  Customer Name
+                </div>
+                <strong style={{ color: "#1e293b", fontSize: 16 }}>
+                  {ledgerCustomer?.customerName || "-"}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    Address
+                  </div>
+                  <div style={{ fontSize: 14, color: "#334155" }}>
+                    {ledgerCustomer?.address || "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>
+                    Mobile Number
+                  </div>
+                  <div style={{ fontSize: 14, color: "#334155" }}>
+                    {ledgerCustomer?.mobile || "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* PAYMENT DETAILS */}
+            <div style={{ marginTop: 22 }}>
+              <h3 style={sectionTitleStyle}>
+                Payment Details
+              </h3>
+
+              {/* AMOUNT */}
+              <label style={labelStyle}>
+                Payment Amount (৳)
+              </label>
+
               <input
                 type="number"
                 min="0.01"
                 step="0.01"
-                style={inputStyle}
+                required
+                placeholder="Enter payment amount"
+                style={{
+                  ...paymentInputStyle,
+                  fontSize: 19,
+                  fontWeight: 700,
+                  color: "#15803d",
+                  minHeight: 50,
+                }}
                 value={customerPaymentEditForm.amount}
                 onChange={(e) =>
                   setCustomerPaymentEditForm((prev) => ({
@@ -7559,53 +9191,113 @@ function renderCustomerPaymentEditModal() {
                     amount: e.target.value,
                   }))
                 }
-                required
               />
-            </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Payment Date</label>
-              <input
-                type="date"
-                style={inputStyle}
-                value={customerPaymentEditForm.transactionDate}
-                onChange={(e) =>
-                  setCustomerPaymentEditForm((prev) => ({
-                    ...prev,
-                    transactionDate: e.target.value,
-                  }))
-                }
-                required
-              />
-            </div>
-
-            <div style={{ marginBottom: 15 }}>
-              <label>Payment Method</label>
-              <select
-                style={inputStyle}
-                value={customerPaymentEditForm.paymentMethod}
-                onChange={(e) =>
-                  setCustomerPaymentEditForm((prev) => ({
-                    ...prev,
-                    paymentMethod: e.target.value,
-                  }))
-                }
-                required
+              {/* METHOD AND DATE */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 14,
+                }}
               >
-                <option value="CASH">Cash</option>
-                <option value="BANK">Bank</option>
-                <option value="BKASH">bKash</option>
-                <option value="NAGAD">Nagad</option>
-                <option value="ROCKET">Rocket</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
+                <div>
+                  <label style={labelStyle}>
+                    Payment Method
+                  </label>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Transaction ID</label>
+                  <select
+                    style={paymentInputStyle}
+                    value={customerPaymentEditForm.paymentMethod}
+                    onChange={(e) =>
+                      setCustomerPaymentEditForm((prev) => ({
+                        ...prev,
+                        paymentMethod: e.target.value,
+                        accountId: "",
+                      }))
+                    }
+                    required
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="BANK">Bank</option>
+                    <option value="BKASH">bKash</option>
+                  
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Transaction Date
+                  </label>
+
+                  <input
+                    type="date"
+                    required
+                    style={paymentInputStyle}
+                    value={customerPaymentEditForm.transactionDate}
+                    onChange={(e) =>
+                      setCustomerPaymentEditForm((prev) => ({
+                        ...prev,
+                        transactionDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* DEPOSIT ACCOUNT */}
+              {needsAccount && (
+                <>
+                  <label style={labelStyle}>
+                    টাকা কোন Account-এ জমা হবে?
+                  </label>
+
+                  <select
+                    required
+                    style={paymentInputStyle}
+                    value={customerPaymentEditForm.accountId}
+                    onChange={(e) =>
+                      setCustomerPaymentEditForm((prev) => ({
+                        ...prev,
+                        accountId: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">
+                      Select {customerPaymentEditForm.paymentMethod} Account
+                    </option>
+
+                    {filteredEditAccounts.map((account) => (
+                      <option key={account._id} value={account._id}>
+                        {account.accountName} ({account.accountType})
+                      </option>
+                    ))}
+                  </select>
+
+                  {customerCollectionAccountsLoading && (
+                    <p style={{ fontSize: 12, color: "#64748b" }}>
+                      Account লোড হচ্ছে...
+                    </p>
+                  )}
+
+                  {!customerCollectionAccountsLoading &&
+                    filteredEditAccounts.length === 0 && (
+                      <p style={{ fontSize: 12, color: "#dc2626" }}>
+                        এই Payment Method-এর কোনো Active Account পাওয়া যায়নি।
+                      </p>
+                    )}
+                </>
+              )}
+
+              {/* TRANSACTION ID */}
+              <label style={labelStyle}>
+                Transaction ID
+              </label>
+
               <input
                 type="text"
-                style={inputStyle}
+                style={paymentInputStyle}
+                placeholder="Enter transaction ID"
                 value={customerPaymentEditForm.transactionId}
                 onChange={(e) =>
                   setCustomerPaymentEditForm((prev) => ({
@@ -7614,13 +9306,16 @@ function renderCustomerPaymentEditModal() {
                   }))
                 }
               />
-            </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Reference</label>
+              {/* REFERENCE */}
+              <label style={labelStyle}>
+                Reference
+              </label>
+
               <input
                 type="text"
-                style={inputStyle}
+                style={paymentInputStyle}
+                placeholder="Enter reference"
                 value={customerPaymentEditForm.reference}
                 onChange={(e) =>
                   setCustomerPaymentEditForm((prev) => ({
@@ -7629,13 +9324,20 @@ function renderCustomerPaymentEditModal() {
                   }))
                 }
               />
-            </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Notes</label>
+              {/* NOTES */}
+              <label style={labelStyle}>
+                Notes
+              </label>
+
               <textarea
-                style={inputStyle}
+                style={{
+                  ...paymentInputStyle,
+                  minHeight: 85,
+                  resize: "vertical",
+                }}
                 rows="3"
+                placeholder="Write payment notes..."
                 value={customerPaymentEditForm.description}
                 onChange={(e) =>
                   setCustomerPaymentEditForm((prev) => ({
@@ -7644,12 +9346,20 @@ function renderCustomerPaymentEditModal() {
                   }))
                 }
               />
-            </div>
 
-            <div style={{ marginBottom: 15 }}>
-              <label>Correction Reason *</label>
+              {/* CORRECTION REASON */}
+              <label style={labelStyle}>
+                Correction Reason *
+              </label>
+
               <textarea
-                style={inputStyle}
+                required
+                style={{
+                  ...paymentInputStyle,
+                  minHeight: 85,
+                  resize: "vertical",
+                  borderColor: "#f59e0b",
+                }}
                 rows="3"
                 placeholder="কেন এই Payment সংশোধন করছেন?"
                 value={customerPaymentEditForm.reason}
@@ -7659,24 +9369,43 @@ function renderCustomerPaymentEditModal() {
                     reason: e.target.value,
                   }))
                 }
-                required
               />
-            </div>
 
-            <div
-              style={{
-                background: "#fff7ed",
-                color: "#9a3412",
-                padding: 12,
-                borderRadius: 6,
-                fontSize: 13,
-              }}
-            >
-              Payment পরিবর্তন করলে Customer Ledger Balance পুনরায় হিসাব করা হবে।
+              {/* INFORMATION */}
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 14,
+                  background: "#fff7ed",
+                  color: "#9a3412",
+                  border: "1px solid #fed7aa",
+                  borderRadius: 9,
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}
+              >
+                <strong>Payment Correction Notice</strong>
+                <div>
+                  Payment পরিবর্তন করলে Customer Ledger Balance পুনরায় হিসাব
+                  করা হবে।
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style={modalFooterStyle}>
+          {/* FOOTER */}
+          <div
+            style={{
+              padding: "16px 22px",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+              background: "#fff",
+              flexWrap: "wrap",
+              flexShrink: 0,
+            }}
+          >
             <button
               type="button"
               className="secondary-button"
@@ -7689,9 +9418,16 @@ function renderCustomerPaymentEditModal() {
             <button
               type="submit"
               className="primary-button"
-              disabled={customerPaymentEditLoading}
+              disabled={
+                customerPaymentEditLoading ||
+                (needsAccount &&
+                  !customerCollectionAccountsLoading &&
+                  filteredEditAccounts.length === 0)
+              }
             >
-              {customerPaymentEditLoading ? "Saving..." : "Save Correction"}
+              {customerPaymentEditLoading
+                ? "Saving..."
+                : "Save Correction"}
             </button>
           </div>
         </form>
@@ -7699,6 +9435,9 @@ function renderCustomerPaymentEditModal() {
     </div>
   );
 }
+
+
+
 function renderCustomerPaymentVoidModal() {
   return (
     <div style={modalOverlayStyle}>
@@ -15920,9 +17659,12 @@ return (
           }}>
             Payment Method *
           </label>
-          <select
-            value={collectionPaymentMethod}
-            onChange={(e) => setCollectionPaymentMethod(e.target.value)}
+ <select
+  value={collectionPaymentMethod}
+  onChange={(e) => {
+    setCollectionPaymentMethod(e.target.value);
+    setCollectionAccountId("");
+  }}
             style={{
               width: "100%",
               padding: 10,
@@ -15935,11 +17677,69 @@ return (
             <option value="CASH">Cash</option>
             <option value="BANK">Bank</option>
             <option value="BKASH">bKash</option>
-            <option value="NAGAD">Nagad</option>
-            <option value="ROCKET">Rocket</option>
-            <option value="OTHER">Other</option>
+           
           </select>
         </div>
+
+{requiresCollectionAccount && (
+  <div>
+    <label
+      style={{
+        display: "block",
+        fontSize: 12,
+        fontWeight: 700,
+        color: "#475569",
+        marginBottom: 6,
+      }}
+    >
+      Select Account *
+    </label>
+
+    <select
+      value={collectionAccountId}
+      onChange={(e) => setCollectionAccountId(e.target.value)}
+      disabled={collectionAccountsLoading}
+      style={{
+        width: "100%",
+        padding: 10,
+        border: "1px solid #cbd5e1",
+        borderRadius: 7,
+        background: "#fff",
+        boxSizing: "border-box",
+      }}
+    >
+      <option value="">
+        {collectionAccountsLoading
+          ? "Loading Accounts..."
+          : "Select Account"}
+      </option>
+
+      {filteredCollectionAccounts.map((account) => (
+        <option key={account._id} value={account._id}>
+          {account.accountName}
+          {account.bankName ? ` - ${account.bankName}` : ""}
+          {" | Balance: ৳"}
+          {Number(account.currentBalance || 0).toLocaleString("en-BD")}
+        </option>
+      ))}
+    </select>
+
+    {!collectionAccountsLoading &&
+      filteredCollectionAccounts.length === 0 && (
+        <p
+          style={{
+            color: "#dc2626",
+            fontSize: 11,
+            marginTop: 5,
+          }}
+        >
+          এই Payment Method-এর কোনো Active Account পাওয়া যায়নি।
+          Account Management থেকে Account তৈরি করুন।
+        </p>
+      )}
+  </div>
+)}
+
 
         <div>
           <label style={{
@@ -18230,12 +20030,44 @@ const invoiceProfit = (invoice.items || []).reduce(
                     <option value="CASH">Cash</option>
                     <option value="BANK">Bank</option>
                     <option value="BKASH">bKash</option>
-                    <option value="NAGAD">Nagad</option>
-                    <option value="ROCKET">Rocket</option>
-                    <option value="OTHER">Other</option>
                     <option value="DUE">Due</option>
                   </select>
                 </div>
+
+{/* Payment Account */}
+{Number(salesForm.paidAmount) > 0 &&
+  ["CASH", "BANK", "BKASH"].includes(salesForm.paymentMethod) && (
+    <div>
+      <label style={fieldLabel}>Payment Account</label>
+      <select
+        style={compactInput}
+        value={salesForm.accountId || ""}
+        onChange={(e) =>
+          updateSalesFormField("accountId", e.target.value)
+        }
+        disabled={accountsLoading}
+      >
+        <option value="">
+          {accountsLoading ? "Loading Accounts..." : "Select Account"}
+        </option>
+
+        {accounts
+          .filter(
+            (account) =>
+              account.accountType === salesForm.paymentMethod &&
+              account.isActive !== false
+          )
+          .map((account) => (
+            <option key={account._id} value={account._id}>
+              {account.accountName}
+              {account.bankName ? ` - ${account.bankName}` : ""}
+              {account.accountNumber ? ` (${account.accountNumber})` : ""}
+            </option>
+          ))}
+      </select>
+    </div>
+  )}
+
 
                 <div>
                   <label style={fieldLabel}>Payment Reference</label>
@@ -19051,26 +20883,54 @@ const invoiceProfit = (invoice.items || []).reduce(
                 }}
               >
                 <div>
-                  <label style={fieldLabel}>Refund Method</label>
-                  <select
-                    style={compactInput}
-                    value={salesReturnRefundMethod}
-                    onChange={(e) =>
-                      setSalesReturnRefundMethod(e.target.value)
-                    }
-                    disabled={
-                      salesReturnSubmitting ||
-                      salesReturnCalculation.refundAmount <= 0
-                    }
-                  >
-                    <option value="CASH">Cash</option>
-                    <option value="BANK">Bank</option>
-                    <option value="BKASH">bKash</option>
-                    <option value="NAGAD">Nagad</option>
-                    <option value="ROCKET">Rocket</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
+  <label style={fieldLabel}>Refund Method</label>
+  <select
+    style={compactInput}
+    value={salesReturnRefundMethod}
+    onChange={(e) => {
+      setSalesReturnRefundMethod(e.target.value);
+      setSalesReturnRefundAccountId("");
+    }}
+    disabled={
+      salesReturnSubmitting ||
+      salesReturnCalculation.refundAmount <= 0
+    }
+  >
+    <option value="CASH">Cash</option>
+    <option value="BANK">Bank</option>
+    <option value="BKASH">bKash</option>
+    <option value="OTHER">Other</option>
+  </select>
+</div>
+
+{salesReturnCalculation.refundAmount > 0 &&
+  ["CASH", "BANK", "BKASH"].includes(salesReturnRefundMethod) && (
+    <div>
+      <label style={fieldLabel}>Refund Account</label>
+      <select
+        style={compactInput}
+        value={salesReturnRefundAccountId}
+        onChange={(e) =>
+          setSalesReturnRefundAccountId(e.target.value)
+        }
+        disabled={salesReturnSubmitting}
+      >
+        <option value="">Select Refund Account</option>
+
+        {accounts
+          .filter(
+            (account) =>
+              account.isActive &&
+              account.accountType === salesReturnRefundMethod
+          )
+          .map((account) => (
+            <option key={account._id} value={account._id}>
+              {account.accountName}
+            </option>
+          ))}
+      </select>
+    </div>
+  )}
 
                 <div>
                   <label style={fieldLabel}>Return Notes</label>
@@ -19145,6 +21005,4254 @@ const invoiceProfit = (invoice.items || []).reduce(
 );
 }
 
+
+// ========================================
+// ACCOUNT MANAGEMENT PAGE
+// ========================================
+async function saveAccount() {
+  if (!accountForm.accountName.trim()) {
+    toast.error("Account Name দিতে হবে");
+    return;
+  }
+
+  if (
+    accountForm.accountType === "BANK" &&
+    !accountForm.bankName.trim()
+  ) {
+    toast.error("Bank Name দিতে হবে");
+    return;
+  }
+
+  try {
+    setAccountSaving(true);
+
+    await apiRequest("/accounts", {
+      method: "POST",
+      body: JSON.stringify({
+        ...accountForm,
+        openingBalance: Number(accountForm.openingBalance || 0),
+      }),
+    });
+
+    toast.success("Account সফলভাবে তৈরি হয়েছে");
+
+    setAccountForm({
+      accountName: "",
+      accountType: "CASH",
+      bankName: "",
+      accountNumber: "",
+      branchName: "",
+      openingBalance: "0",
+      openingBalanceDate: new Date().toISOString().slice(0, 10),
+      notes: "",
+    });
+
+    await loadAccounts();
+  } catch (error) {
+    toast.error(error.message || "Account তৈরি করা যায়নি");
+  } finally {
+    setAccountSaving(false);
+  }
+}
+
+
+function renderAccountTransactions() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 6,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#475569",
+    marginBottom: 6,
+  };
+
+  return (
+    <div className="panel" style={{ padding: 22 }}>
+      <h2 style={{ margin: "0 0 8px" }}>Account Transactions</h2>
+      <p style={{ color: "#7b8494", margin: "0 0 20px" }}>
+        Cash, Bank এবং bKash Account-এ টাকা জমা, উত্তোলন ও Transfer
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 16,
+        }}
+      >
+        <div>
+          <label style={labelStyle}>Transaction Type *</label>
+          <select
+            style={fieldStyle}
+            value={transactionForm.transactionType}
+            onChange={(e) =>
+              setTransactionForm((prev) => ({
+                ...prev,
+                transactionType: e.target.value,
+                relatedAccountId: "",
+              }))
+            }
+          >
+            <option value="DEPOSIT">Deposit (জমা)</option>
+            <option value="WITHDRAWAL">Withdraw (উত্তোলন)</option>
+            <option value="TRANSFER">Transfer (স্থানান্তর)</option>
+          </select>
+        </div>
+
+        <div>
+          <label style={labelStyle}>
+            {transactionForm.transactionType === "DEPOSIT"
+              ? "Deposit To Account *"
+              : "From Account *"}
+          </label>
+          <select
+            style={fieldStyle}
+            value={transactionForm.accountId}
+            onChange={(e) =>
+              setTransactionForm((prev) => ({
+                ...prev,
+                accountId: e.target.value,
+              }))
+            }
+          >
+            <option value="">Select Account</option>
+            {accounts
+              .filter((account) => account.isActive !== false)
+              .map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName} ({account.accountType})
+                </option>
+              ))}
+          </select>
+        </div>
+
+        {transactionForm.transactionType === "TRANSFER" && (
+          <div>
+            <label style={labelStyle}>To Account *</label>
+            <select
+              style={fieldStyle}
+              value={transactionForm.relatedAccountId}
+              onChange={(e) =>
+                setTransactionForm((prev) => ({
+                  ...prev,
+                  relatedAccountId: e.target.value,
+                }))
+              }
+            >
+              <option value="">Select Destination Account</option>
+              {accounts
+                .filter(
+                  (account) =>
+                    account.isActive !== false &&
+                    account._id !== transactionForm.accountId
+                )
+                .map((account) => (
+                  <option key={account._id} value={account._id}>
+                    {account.accountName} ({account.accountType})
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label style={labelStyle}>Amount (৳) *</label>
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            style={fieldStyle}
+            placeholder="Enter amount"
+            value={transactionForm.amount}
+            onChange={(e) =>
+              setTransactionForm((prev) => ({
+                ...prev,
+                amount: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Transaction Date</label>
+          <input
+            type="date"
+            style={fieldStyle}
+            value={transactionForm.transactionDate}
+            onChange={(e) =>
+              setTransactionForm((prev) => ({
+                ...prev,
+                transactionDate: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Reference</label>
+          <input
+            style={fieldStyle}
+            placeholder="Optional reference"
+            value={transactionForm.reference}
+            onChange={(e) =>
+              setTransactionForm((prev) => ({
+                ...prev,
+                reference: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Description</label>
+          <input
+            style={fieldStyle}
+            placeholder="Transaction details"
+            value={transactionForm.description}
+            onChange={(e) =>
+              setTransactionForm((prev) => ({
+                ...prev,
+                description: e.target.value,
+              }))
+            }
+          />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <button
+          className="primary-button"
+          onClick={saveAccountTransaction}
+          disabled={transactionSaving}
+        >
+          {transactionSaving ? "Processing..." : "Save Transaction"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ========================================
+// ACCOUNT TRANSACTION HISTORY PAGE
+// ========================================
+
+function renderTransactionHistory() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 6,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#475569",
+    marginBottom: 6,
+  };
+
+  const secondaryButtonStyle = {
+    padding: "9px 16px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 6,
+    background: "#fff",
+    color: "#475569",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 600,
+  };
+
+  const formatMoney = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const handleFilterChange = (field, value) => {
+    setTransactionFilters((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleReset = async () => {
+    const emptyFilters = {
+      accountId: "",
+      transactionType: "",
+      fromDate: "",
+      toDate: "",
+    };
+
+    setTransactionFilters(emptyFilters);
+
+    try {
+      setTransactionHistoryLoading(true);
+
+      const response = await apiRequest(
+        "/accounts/transactions?page=1&limit=50"
+      );
+
+      setAccountTransactions(response.data || []);
+      setTransactionPagination(
+        response.pagination || {
+          currentPage: 1,
+          totalPages: 1,
+          totalTransactions: 0,
+        }
+      );
+    } catch (error) {
+      toast.error(error.message || "Transaction history load failed");
+    } finally {
+      setTransactionHistoryLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+      {/* PAGE HEADER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0 }}>
+              Account Transaction History
+            </h2>
+            <p style={{ color: "#7b8494", margin: "6px 0 0" }}>
+              সকল Account-এর Deposit, Withdrawal ও Transfer History
+            </p>
+          </div>
+
+          <button
+            className="primary-button"
+            onClick={() => loadAccountTransactions(1)}
+            disabled={transactionHistoryLoading}
+          >
+            {transactionHistoryLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {/* FILTER SECTION */}
+      <div className="panel" style={{ padding: 22 }}>
+        <h3 style={{ margin: "0 0 18px", fontSize: 16 }}>
+          Filter Transactions
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Account</label>
+            <select
+              style={fieldStyle}
+              value={transactionFilters.accountId}
+              onChange={(e) =>
+                handleFilterChange("accountId", e.target.value)
+              }
+            >
+              <option value="">All Accounts</option>
+              {accounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Transaction Type</label>
+            <select
+              style={fieldStyle}
+              value={transactionFilters.transactionType}
+              onChange={(e) =>
+                handleFilterChange("transactionType", e.target.value)
+              }
+            >
+              <option value="">All Transactions</option>
+              <option value="OPENING_BALANCE">Opening Balance</option>
+              <option value="DEPOSIT">Deposit</option>
+              <option value="WITHDRAWAL">Withdrawal</option>
+              <option value="TRANSFER_IN">Transfer In</option>
+              <option value="TRANSFER_OUT">Transfer Out</option>
+              <option value="ADJUSTMENT">Adjustment</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>From Date</label>
+            <input
+              type="date"
+              style={fieldStyle}
+              value={transactionFilters.fromDate}
+              onChange={(e) =>
+                handleFilterChange("fromDate", e.target.value)
+              }
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>To Date</label>
+            <input
+              type="date"
+              style={fieldStyle}
+              value={transactionFilters.toDate}
+              onChange={(e) =>
+                handleFilterChange("toDate", e.target.value)
+              }
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginTop: 18,
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            className="primary-button"
+            onClick={() => loadAccountTransactions(1)}
+            disabled={transactionHistoryLoading}
+          >
+            Search
+          </button>
+
+          <button
+            type="button"
+            style={secondaryButtonStyle}
+            onClick={handleReset}
+            disabled={transactionHistoryLoading}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {/* TRANSACTION TABLE */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={{ ...pageHeaderStyle, marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16 }}>
+              Transaction List
+            </h3>
+            <p style={{ color: "#7b8494", margin: "6px 0 0", fontSize: 13 }}>
+              Total Transactions: {transactionPagination.totalTransactions || 0}
+            </p>
+          </div>
+        </div>
+
+        {transactionHistoryLoading ? (
+          <p style={{ color: "#7b8494", fontSize: 13 }}>
+            Loading transactions...
+          </p>
+        ) : accountTransactions.length === 0 ? (
+          <p style={{ color: "#7b8494", fontSize: 13 }}>
+            কোনো Transaction পাওয়া যায়নি।
+          </p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>DATE</th>
+                  <th>ACCOUNT</th>
+                  <th>TRANSACTION</th>
+                  <th>DIRECTION</th>
+                  <th>AMOUNT</th>
+                  <th>REFERENCE</th>
+                  <th>DESCRIPTION</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {accountTransactions.map((transaction) => (
+                  <tr key={transaction._id}>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      {transaction.transactionDate
+                        ? new Date(
+                            transaction.transactionDate
+                          ).toLocaleDateString("en-GB")
+                        : "-"}
+                    </td>
+
+                    <td>
+                      <div style={{ fontWeight: 600 }}>
+                        {transaction.accountId?.accountName || "-"}
+                      </div>
+                      <small style={{ color: "#7b8494" }}>
+                        {transaction.accountId?.accountType || ""}
+                      </small>
+                    </td>
+
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      {String(transaction.transactionType || "")
+                        .replaceAll("_", " ")}
+                    </td>
+
+                    <td>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "4px 9px",
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background:
+                            transaction.direction === "IN"
+                              ? "#dcfce7"
+                              : "#fee2e2",
+                          color:
+                            transaction.direction === "IN"
+                              ? "#15803d"
+                              : "#b91c1c",
+                        }}
+                      >
+                        {transaction.direction}
+                      </span>
+                    </td>
+
+                    <td
+                      style={{
+                        textAlign: "left",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                        color:
+                          transaction.direction === "IN"
+                            ? "#15803d"
+                            : "#dc2626",
+                      }}
+                    >
+                      {transaction.direction === "IN" ? "+" : "-"}
+                      ৳ {formatMoney(transaction.amount)}
+                    </td>
+
+                    <td>{transaction.reference || "-"}</td>
+
+                    <td>{transaction.description || "-"}</td>
+
+                    <td>
+  <span
+    style={{
+      display: "inline-block",
+      padding: "4px 9px",
+      borderRadius: 20,
+      fontSize: 11,
+      fontWeight: 700,
+      background: transaction.isVoided
+        ? "#fee2e2"
+        : "#dcfce7",
+      color: transaction.isVoided
+        ? "#b91c1c"
+        : "#15803d",
+    }}
+  >
+    {transaction.isVoided ? "VOIDED" : "ACTIVE"}
+  </span>
+</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* PAGINATION */}
+        <div
+          style={{
+            ...pageHeaderStyle,
+            marginTop: 18,
+            paddingTop: 14,
+            borderTop: "1px solid #edf0f4",
+          }}
+        >
+          <p style={{ color: "#7b8494", fontSize: 13, margin: 0 }}>
+            Page {transactionPagination.currentPage || 1} of{" "}
+            {transactionPagination.totalPages || 1}
+          </p>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={{
+                ...secondaryButtonStyle,
+                opacity:
+                  transactionHistoryLoading ||
+                  transactionPagination.currentPage <= 1
+                    ? 0.4
+                    : 1,
+              }}
+              disabled={
+                transactionHistoryLoading ||
+                transactionPagination.currentPage <= 1
+              }
+              onClick={() =>
+                loadAccountTransactions(
+                  transactionPagination.currentPage - 1
+                )
+              }
+            >
+              Previous
+            </button>
+
+            <button
+              style={{
+                ...secondaryButtonStyle,
+                opacity:
+                  transactionHistoryLoading ||
+                  transactionPagination.currentPage >=
+                    transactionPagination.totalPages
+                    ? 0.4
+                    : 1,
+              }}
+              disabled={
+                transactionHistoryLoading ||
+                transactionPagination.currentPage >=
+                  transactionPagination.totalPages
+              }
+              onClick={() =>
+                loadAccountTransactions(
+                  transactionPagination.currentPage + 1
+                )
+              }
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+function renderLoanReceived() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 9,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+    minHeight: 43,
+    color: "#334155",
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: 7,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+  };
+
+  const sectionStyle = {
+    padding: 17,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+  };
+
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 15,
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+      {/* PAGE HEADER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, color: "#1e293b" }}>
+              Loan Received
+            </h2>
+            <p style={{ color: "#7b8494", margin: "6px 0 0", fontSize: 13 }}>
+              Record received loan and deposit it into an account
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={loadLoanReceivedData}
+            disabled={loanReceivedLoading}
+          >
+            {loanReceivedLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {/* LOAN RECEIVED FORM */}
+      <div
+        className="panel"
+        style={{
+          padding: 0,
+          borderRadius: 16,
+          overflow: "hidden",
+        }}
+      >
+        {/* FORM HEADER */}
+        <div
+          style={{
+            padding: "20px 22px",
+            background: "#fff",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 20, color: "#1e293b" }}>
+            Receive New Loan
+          </h3>
+
+          <p style={{ margin: "5px 0 0", fontSize: 13, color: "#64748b" }}>
+            Enter loan provider, receiving account and loan amount
+          </p>
+        </div>
+
+        <form onSubmit={saveLoanReceived}>
+          <div style={{ padding: 22 }}>
+
+            {/* PROVIDER AND ACCOUNT */}
+            <div style={sectionStyle}>
+              <h4
+                style={{
+                  margin: "0 0 15px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: "#334155",
+                }}
+              >
+                Provider & Account Information
+              </h4>
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>
+                    Loan Provider *
+                  </label>
+
+                  <select
+                    style={fieldStyle}
+                    required
+                    value={loanReceivedForm.providerId}
+                    onChange={(e) =>
+                      setLoanReceivedForm((prev) => ({
+                        ...prev,
+                        providerId: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select Loan Provider</option>
+
+                    {loanReceivedProviders.map((provider) => (
+                      <option key={provider._id} value={provider._id}>
+                        {provider.providerName} ({provider.providerType})
+                      </option>
+                    ))}
+                  </select>
+
+                  {loanReceivedProviders.length === 0 && (
+                    <p style={{ color: "#dc2626", fontSize: 12, margin: "6px 0 0" }}>
+                      No active Loan Provider found.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Deposit Account *
+                  </label>
+
+                  <select
+                    style={fieldStyle}
+                    required
+                    value={loanReceivedForm.accountId}
+                    onChange={(e) =>
+                      setLoanReceivedForm((prev) => ({
+                        ...prev,
+                        accountId: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select Account</option>
+
+                    {loanReceivedAccounts.map((account) => (
+                      <option key={account._id} value={account._id}>
+                        {account.accountName || account.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {loanReceivedAccounts.length === 0 && (
+                    <p style={{ color: "#dc2626", fontSize: 12, margin: "6px 0 0" }}>
+                      No account found.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* LOAN AMOUNT */}
+            <div style={{ ...sectionStyle, marginTop: 18 }}>
+              <h4
+                style={{
+                  margin: "0 0 15px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: "#334155",
+                }}
+              >
+                Loan Amount Information
+              </h4>
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>
+                    Received Loan Amount (৳) *
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                    style={fieldStyle}
+                    placeholder="Enter loan amount"
+                    value={loanReceivedForm.amount}
+                    onChange={(e) =>
+                      setLoanReceivedForm((prev) => ({
+                        ...prev,
+                        amount: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Transaction Date *
+                  </label>
+
+                  <input
+                    type="date"
+                    required
+                    style={fieldStyle}
+                    value={loanReceivedForm.transactionDate}
+                    onChange={(e) =>
+                      setLoanReceivedForm((prev) => ({
+                        ...prev,
+                        transactionDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* REFERENCE AND DESCRIPTION */}
+            <div style={{ ...sectionStyle, marginTop: 18 }}>
+              <h4
+                style={{
+                  margin: "0 0 15px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: "#334155",
+                }}
+              >
+                Additional Information
+              </h4>
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>
+                    Reference Number
+                  </label>
+
+                  <input
+                    style={fieldStyle}
+                    placeholder="Cheque / Transaction / Reference Number"
+                    value={loanReceivedForm.reference}
+                    onChange={(e) =>
+                      setLoanReceivedForm((prev) => ({
+                        ...prev,
+                        reference: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 15 }}>
+                <label style={labelStyle}>
+                  Description / Notes
+                </label>
+
+                <textarea
+                  rows={3}
+                  placeholder="Write loan receiving details..."
+                  style={{
+                    ...fieldStyle,
+                    minHeight: 85,
+                    resize: "vertical",
+                  }}
+                  value={loanReceivedForm.description}
+                  onChange={(e) =>
+                    setLoanReceivedForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* INFORMATION NOTE */}
+            <div
+              style={{
+                marginTop: 18,
+                padding: 14,
+                border: "1px solid #bfdbfe",
+                background: "#eff6ff",
+                borderRadius: 10,
+                color: "#1e40af",
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              <strong>Note:</strong> Received loan amount will be deposited
+              into the selected account and added to the provider's outstanding
+              loan principal. It will not be recorded as business income.
+            </div>
+          </div>
+
+          {/* FORM FOOTER */}
+          <div
+            style={{
+              padding: "16px 22px",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "flex-end",
+              background: "#fff",
+            }}
+          >
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={loanReceivedSaving || loanReceivedLoading}
+            >
+              {loanReceivedSaving ? "Saving..." : "Save Loan Received"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+function renderLoanRepayment() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 9,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+    minHeight: 43,
+    color: "#334155",
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: 7,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+  };
+
+  const sectionStyle = {
+    padding: 17,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+  };
+
+  const sectionTitleStyle = {
+    margin: "0 0 15px",
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#334155",
+  };
+
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 15,
+  };
+
+  const selectedProvider = loanRepaymentProviders.find(
+    (provider) => provider._id === loanRepaymentForm.providerId
+  );
+
+  const isPersonalLoan = selectedProvider?.providerType === "PERSON";
+
+  const principalAmount = Number(
+    loanRepaymentForm.principalAmount || 0
+  );
+
+  const interestAmount = isPersonalLoan
+    ? Number(loanRepaymentForm.interestAmount || 0)
+    : 0;
+
+  const totalPayment = principalAmount + interestAmount;
+
+  const formatAmount = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+      {/* PAGE HEADER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, color: "#1e293b" }}>
+              Loan Repayment
+            </h2>
+
+            <p style={{ color: "#7b8494", margin: "6px 0 0", fontSize: 13 }}>
+              Record Bank and Personal Loan repayments
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={loadLoanRepaymentData}
+            disabled={loanRepaymentLoading}
+          >
+            {loanRepaymentLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {/* REPAYMENT FORM */}
+      <div
+        className="panel"
+        style={{
+          padding: 0,
+          borderRadius: 16,
+          overflow: "hidden",
+        }}
+      >
+        {/* FORM HEADER */}
+        <div
+          style={{
+            padding: "20px 22px",
+            background: "#fff",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 20, color: "#1e293b" }}>
+            New Loan Repayment
+          </h3>
+
+          <p style={{ margin: "5px 0 0", fontSize: 13, color: "#64748b" }}>
+            Enter repayment details and payment information
+          </p>
+        </div>
+
+        <form onSubmit={saveLoanRepayment}>
+          <div style={{ padding: 22 }}>
+
+            {/* PROVIDER AND ACCOUNT */}
+            <div style={sectionStyle}>
+              <h4 style={sectionTitleStyle}>
+                Provider & Account Information
+              </h4>
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>
+                    Loan Provider *
+                  </label>
+
+                  <select
+                    style={fieldStyle}
+                    required
+                    value={loanRepaymentForm.providerId}
+                    onChange={(e) =>
+                      setLoanRepaymentForm((prev) => ({
+                        ...prev,
+                        providerId: e.target.value,
+                        principalAmount: "",
+                        interestAmount: "0",
+                      }))
+                    }
+                  >
+                    <option value="">Select Loan Provider</option>
+
+                    {loanRepaymentProviders.map((provider) => (
+                      <option key={provider._id} value={provider._id}>
+                        {provider.providerName} ({provider.providerType})
+                      </option>
+                    ))}
+                  </select>
+
+                  {loanRepaymentProviders.length === 0 && (
+                    <p style={{ color: "#dc2626", fontSize: 12, margin: "6px 0 0" }}>
+                      No active Loan Provider found.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label style={labelStyle}>
+                    Payment Account *
+                  </label>
+
+                  <select
+                    style={fieldStyle}
+                    required
+                    value={loanRepaymentForm.accountId}
+                    onChange={(e) =>
+                      setLoanRepaymentForm((prev) => ({
+                        ...prev,
+                        accountId: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select Account</option>
+
+                    {loanRepaymentAccounts.map((account) => (
+                      <option key={account._id} value={account._id}>
+                        {account.accountName || account.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {loanRepaymentAccounts.length === 0 && (
+                    <p style={{ color: "#dc2626", fontSize: 12, margin: "6px 0 0" }}>
+                      No account found.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* REPAYMENT AMOUNTS */}
+            <div style={{ ...sectionStyle, marginTop: 18 }}>
+              <h4 style={sectionTitleStyle}>
+                Repayment Amount Information
+              </h4>
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>
+                    Principal Amount (৳) *
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    style={fieldStyle}
+                    placeholder="Enter principal amount"
+                    value={loanRepaymentForm.principalAmount}
+                    onChange={(e) =>
+                      setLoanRepaymentForm((prev) => ({
+                        ...prev,
+                        principalAmount: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                {isPersonalLoan && (
+                  <div>
+                    <label style={labelStyle}>
+                      Interest Amount (৳)
+                    </label>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      style={fieldStyle}
+                      placeholder="Enter interest amount"
+                      value={loanRepaymentForm.interestAmount}
+                      onChange={(e) =>
+                        setLoanRepaymentForm((prev) => ({
+                          ...prev,
+                          interestAmount: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label style={labelStyle}>
+                    Transaction Date *
+                  </label>
+
+                  <input
+                    type="date"
+                    required
+                    style={fieldStyle}
+                    value={loanRepaymentForm.transactionDate}
+                    onChange={(e) =>
+                      setLoanRepaymentForm((prev) => ({
+                        ...prev,
+                        transactionDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* TOTAL PAYMENT PREVIEW */}
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: 18,
+                  background: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>
+                      Total Account Payment
+                    </p>
+
+                    <h2
+                      style={{
+                        margin: "7px 0 0",
+                        fontSize: 25,
+                        color: "#1e293b",
+                      }}
+                    >
+                      ৳{formatAmount(totalPayment)}
+                    </h2>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                      Principal Reduction
+                    </p>
+
+                    <strong style={{ fontSize: 16, color: "#15803d" }}>
+                      ৳{formatAmount(principalAmount)}
+                    </strong>
+                  </div>
+                </div>
+
+                {isPersonalLoan && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: "1px solid #e2e8f0",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ color: "#64748b" }}>
+                      Interest Payment
+                    </span>
+
+                    <strong style={{ color: "#b45309" }}>
+                      ৳{formatAmount(interestAmount)}
+                    </strong>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ADDITIONAL INFORMATION */}
+            <div style={{ ...sectionStyle, marginTop: 18 }}>
+              <h4 style={sectionTitleStyle}>
+                Additional Information
+              </h4>
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>
+                    Reference Number
+                  </label>
+
+                  <input
+                    style={fieldStyle}
+                    placeholder="Cheque / Transaction / Reference Number"
+                    value={loanRepaymentForm.reference}
+                    onChange={(e) =>
+                      setLoanRepaymentForm((prev) => ({
+                        ...prev,
+                        reference: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 15 }}>
+                <label style={labelStyle}>
+                  Description / Notes
+                </label>
+
+                <textarea
+                  rows={3}
+                  placeholder="Write repayment details..."
+                  style={{
+                    ...fieldStyle,
+                    minHeight: 85,
+                    resize: "vertical",
+                  }}
+                  value={loanRepaymentForm.description}
+                  onChange={(e) =>
+                    setLoanRepaymentForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* INFORMATION NOTE */}
+            <div
+              style={{
+                marginTop: 18,
+                padding: 14,
+                border: "1px solid #bfdbfe",
+                background: "#eff6ff",
+                borderRadius: 10,
+                color: "#1e40af",
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              <strong>Note:</strong>{" "}
+              {isPersonalLoan
+                ? "Total payment will be deducted from the selected account. Only principal amount will reduce outstanding loan balance. Interest will be tracked separately."
+                : "Bank loan repayment is principal-only. The full payment amount will reduce outstanding principal."}
+            </div>
+          </div>
+
+          {/* FORM FOOTER */}
+          <div
+            style={{
+              padding: "16px 22px",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "flex-end",
+              background: "#fff",
+            }}
+          >
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={loanRepaymentSaving || loanRepaymentLoading}
+            >
+              {loanRepaymentSaving ? "Saving..." : "Save Loan Repayment"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+function renderLoanHistory() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 9,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+    minHeight: 43,
+    color: "#334155",
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: 7,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+  };
+
+  const sectionStyle = {
+    padding: 17,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+  };
+
+  const formatAmount = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const filteredTransactions = loanHistoryTransactions.filter((item) => {
+    const transactionDate = item.transactionDate
+      ? new Date(item.transactionDate)
+      : null;
+
+    const fromDate = loanHistoryFromDate
+      ? new Date(`${loanHistoryFromDate}T00:00:00`)
+      : null;
+
+    const toDate = loanHistoryToDate
+      ? new Date(`${loanHistoryToDate}T23:59:59`)
+      : null;
+
+    const matchesType =
+      loanHistoryTypeFilter === "ALL" ||
+      item.transactionType === loanHistoryTypeFilter;
+
+    const matchesFromDate =
+      !fromDate || (transactionDate && transactionDate >= fromDate);
+
+    const matchesToDate =
+      !toDate || (transactionDate && transactionDate <= toDate);
+
+    return matchesType && matchesFromDate && matchesToDate;
+  });
+
+  const sortedTransactions = [...filteredTransactions].sort(
+    (a, b) =>
+      new Date(b.transactionDate || 0) -
+      new Date(a.transactionDate || 0)
+  );
+
+  const totalReceived = filteredTransactions
+    .filter((item) => item.transactionType === "RECEIVED")
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  const totalPrincipalPaid = filteredTransactions
+    .filter((item) => item.transactionType === "REPAYMENT")
+    .reduce((sum, item) => sum + Number(item.principalAmount || 0), 0);
+
+  const totalInterestPaid = filteredTransactions
+    .filter((item) => item.transactionType === "REPAYMENT")
+    .reduce((sum, item) => sum + Number(item.interestAmount || 0), 0);
+
+  const getProviderName = (item) => {
+    const provider = loanHistoryProviders.find(
+      (p) => p._id === (item.providerId?._id || item.providerId)
+    );
+
+    return (
+      item.providerName ||
+      item.providerId?.providerName ||
+      provider?.providerName ||
+      "Loan Provider"
+    );
+  };
+
+  const getTypeLabel = (type) => {
+    if (type === "RECEIVED") return "Loan Received";
+    if (type === "REPAYMENT") return "Loan Repayment";
+    return type || "Transaction";
+  };
+
+
+const downloadLoanStatement = async () => {
+  try {
+    if (!loanHistoryProviderId) {
+      alert("PDF ডাউনলোড করার জন্য আগে একজন Loan Provider নির্বাচন করুন।");
+      return;
+    }
+
+    if (
+      loanHistoryFromDate &&
+      loanHistoryToDate &&
+      loanHistoryFromDate > loanHistoryToDate
+    ) {
+      alert("From Date, To Date-এর পরে হতে পারবে না।");
+      return;
+    }
+
+    const params = new URLSearchParams();
+
+    if (loanHistoryFromDate) {
+      params.append("fromDate", loanHistoryFromDate);
+    }
+
+    if (loanHistoryToDate) {
+      params.append("toDate", loanHistoryToDate);
+    }
+
+    const queryString = params.toString();
+
+    const url =
+      `${API}/loans/${loanHistoryProviderId}/statement.pdf` +
+      (queryString ? `?${queryString}` : "");
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      let errorMessage = "PDF তৈরি করা যায়নি।";
+
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    const blob = await response.blob();
+
+    if (!blob.size) {
+      throw new Error("PDF ফাইল খালি পাওয়া গেছে।");
+    }
+
+    const selectedProvider = loanHistoryProviders.find(
+      (item) => item._id === loanHistoryProviderId
+    );
+
+    const fileName =
+      `Loan-Statement-${selectedProvider?.providerName || "Provider"}.pdf`;
+
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = fileName;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(downloadUrl);
+
+    alert("বাংলা Loan Statement PDF ডাউনলোড হয়েছে।");
+  } catch (error) {
+    console.error("LOAN STATEMENT DOWNLOAD ERROR:", error);
+    alert(error.message || "PDF ডাউনলোড ব্যর্থ হয়েছে।");
+  }
+};
+
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+      {/* HEADER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, color: "#1e293b" }}>
+              Loan History
+            </h2>
+
+            <p style={{ color: "#7b8494", margin: "6px 0 0", fontSize: 13 }}>
+              View all loan received and repayment transactions
+            </p>
+          </div>
+
+    
+<div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+  <button
+    type="button"
+    className="primary-button"
+    onClick={downloadLoanStatement}
+    disabled={!loanHistoryProviderId}
+    style={{
+      background: "#ea580c",
+      opacity: loanHistoryProviderId ? 1 : 0.5,
+      cursor: loanHistoryProviderId ? "pointer" : "not-allowed",
+    }}
+  >
+    বাংলা PDF ডাউনলোড
+  </button>
+
+  <button
+    type="button"
+    className="primary-button"
+    onClick={loadLoanHistoryData}
+    disabled={loanHistoryLoading}
+  >
+    {loanHistoryLoading ? "Loading..." : "Refresh"}
+  </button>
+</div>
+
+
+          
+        </div>
+      </div>
+
+      {/* FILTERS */}
+      <div className="panel" style={{ padding: 22 }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 17, color: "#1e293b" }}>
+          Filter Loan History
+        </h3>
+
+        <div style={sectionStyle}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: 15,
+            }}
+          >
+            <div>
+              <label style={labelStyle}>Loan Provider</label>
+
+              <select
+                style={fieldStyle}
+                value={loanHistoryProviderId}
+                onChange={(e) => {
+                  setLoanHistoryProviderId(e.target.value);
+                  setLoanHistoryTransactions([]);
+                  setTimeout(() => {}, 0);
+                }}
+              >
+                <option value="">All Loan Providers</option>
+
+                {loanHistoryProviders.map((provider) => (
+                  <option key={provider._id} value={provider._id}>
+                    {provider.providerName} ({provider.providerType})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Transaction Type</label>
+
+              <select
+                style={fieldStyle}
+                value={loanHistoryTypeFilter}
+                onChange={(e) => setLoanHistoryTypeFilter(e.target.value)}
+              >
+                <option value="ALL">All Transactions</option>
+                <option value="RECEIVED">Loan Received</option>
+                <option value="REPAYMENT">Loan Repayment</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>From Date</label>
+
+              <input
+                type="date"
+                style={fieldStyle}
+                value={loanHistoryFromDate}
+                onChange={(e) => setLoanHistoryFromDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>To Date</label>
+
+              <input
+                type="date"
+                style={fieldStyle}
+                value={loanHistoryToDate}
+                onChange={(e) => setLoanHistoryToDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 15 }}>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={loadLoanHistoryData}
+              disabled={loanHistoryLoading}
+            >
+              Apply Filter
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLoanHistoryProviderId("");
+                setLoanHistoryTypeFilter("ALL");
+                setLoanHistoryFromDate("");
+                setLoanHistoryToDate("");
+              }}
+              style={{
+                marginLeft: 9,
+                padding: "10px 16px",
+                border: "1px solid #cbd5e1",
+                borderRadius: 9,
+                background: "#fff",
+                cursor: "pointer",
+                color: "#475569",
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* SUMMARY */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {[
+          {
+            title: "Total Loan Received",
+            amount: totalReceived,
+            color: "#15803d",
+          },
+          {
+            title: "Principal Repaid",
+            amount: totalPrincipalPaid,
+            color: "#2563eb",
+          },
+          {
+            title: "Interest Paid",
+            amount: totalInterestPaid,
+            color: "#b45309",
+          },
+          {
+            title: "Total Transactions",
+            amount: filteredTransactions.length,
+            color: "#475569",
+            count: true,
+          },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="panel"
+            style={{ padding: 19 }}
+          >
+            <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>
+              {item.title}
+            </p>
+
+            <h3
+              style={{
+                margin: "9px 0 0",
+                fontSize: 23,
+                color: item.color,
+              }}
+            >
+              {item.count
+                ? item.amount
+                : `৳${formatAmount(item.amount)}`}
+            </h3>
+          </div>
+        ))}
+      </div>
+
+      {/* TRANSACTION TABLE */}
+      <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div
+          style={{
+            padding: "19px 22px",
+            borderBottom: "1px solid #e2e8f0",
+            background: "#fff",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 18, color: "#1e293b" }}>
+            Loan Transaction List
+          </h3>
+
+          <p style={{ margin: "5px 0 0", fontSize: 13, color: "#64748b" }}>
+            Showing {sortedTransactions.length} transactions
+          </p>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              minWidth: 950,
+            }}
+          >
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                {[
+                  "Date",
+                  "Loan Provider",
+                  "Transaction Type",
+                  "Principal",
+                  "Interest",
+                  "Total Amount",
+                  "Reference",
+                  "Description",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      padding: "13px 14px",
+                      textAlign: "left",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "#475569",
+                      borderBottom: "1px solid #e2e8f0",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {sortedTransactions.map((item, index) => {
+                const isReceived = item.transactionType === "RECEIVED";
+                const principal = Number(
+                  item.principalAmount ?? (isReceived ? item.amount : 0) ?? 0
+                );
+                const interest = Number(item.interestAmount || 0);
+                const total = isReceived
+                  ? Number(item.amount || principal)
+                  : Number(item.amount || principal + interest);
+
+                return (
+                  <tr
+                    key={item._id || index}
+                    style={{ borderBottom: "1px solid #e2e8f0" }}
+                  >
+                    <td style={{ padding: 14, fontSize: 13, whiteSpace: "nowrap" }}>
+                      {item.transactionDate
+                        ? new Date(item.transactionDate).toLocaleDateString("en-GB")
+                        : "-"}
+                    </td>
+
+                    <td style={{ padding: 14, fontSize: 13, fontWeight: 600 }}>
+                      {getProviderName(item)}
+                    </td>
+
+                    <td style={{ padding: 14, fontSize: 13 }}>
+                      <span
+                        style={{
+                          padding: "5px 9px",
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: isReceived ? "#15803d" : "#2563eb",
+                          background: isReceived ? "#dcfce7" : "#dbeafe",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {getTypeLabel(item.transactionType)}
+                      </span>
+                    </td>
+
+                    <td style={{ padding: 14, fontSize: 13 }}>
+                      ৳{formatAmount(principal)}
+                    </td>
+
+                    <td style={{ padding: 14, fontSize: 13, color: "#b45309" }}>
+                      ৳{formatAmount(interest)}
+                    </td>
+
+                    <td style={{ padding: 14, fontSize: 13, fontWeight: 700 }}>
+                      ৳{formatAmount(total)}
+                    </td>
+
+                    <td style={{ padding: 14, fontSize: 13 }}>
+                      {item.reference || "-"}
+                    </td>
+
+                    <td style={{ padding: 14, fontSize: 13 }}>
+                      {item.description || "-"}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {!loanHistoryLoading && sortedTransactions.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={8}
+                    style={{
+                      padding: 35,
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      fontSize: 13,
+                    }}
+                  >
+                    No loan transactions found.
+                  </td>
+                </tr>
+              )}
+
+              {loanHistoryLoading && (
+                <tr>
+                  <td
+                    colSpan={8}
+                    style={{
+                      padding: 35,
+                      textAlign: "center",
+                      color: "#64748b",
+                    }}
+                  >
+                    Loading loan history...
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function renderLoanReports() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 9,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+    minHeight: 43,
+    color: "#334155",
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: 7,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+  };
+
+  const formatAmount = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const isWithinDateRange = (item) => {
+    const date = item.transactionDate
+      ? new Date(item.transactionDate)
+      : null;
+
+    if (!date || Number.isNaN(date.getTime())) return false;
+
+    const from = loanReportFromDate
+      ? new Date(`${loanReportFromDate}T00:00:00`)
+      : null;
+
+    const to = loanReportToDate
+      ? new Date(`${loanReportToDate}T23:59:59`)
+      : null;
+
+    return (!from || date >= from) && (!to || date <= to);
+  };
+
+  const getProviderReport = (entry) => {
+    const transactions = entry.transactions || [];
+
+    const received = transactions
+      .filter((item) => item.transactionType === "RECEIVED")
+      .reduce(
+        (sum, item) => sum + Number(item.amount || item.principalAmount || 0),
+        0
+      );
+
+    const principalRepaid = transactions
+      .filter((item) => item.transactionType === "REPAYMENT")
+      .reduce((sum, item) => sum + Number(item.principalAmount || 0), 0);
+
+    const interestPaid = transactions
+      .filter((item) => item.transactionType === "REPAYMENT")
+      .reduce((sum, item) => sum + Number(item.interestAmount || 0), 0);
+
+    const openingBalance = Number(entry.provider.openingBalance || 0);
+
+    return {
+      openingBalance,
+      received,
+      principalRepaid,
+      interestPaid,
+      outstanding: Math.max(
+        0,
+        openingBalance + received - principalRepaid
+      ),
+    };
+  };
+
+  const providerReports = loanReportData.map((entry) => ({
+    ...entry,
+    calculated: getProviderReport(entry),
+  }));
+
+  const totalOpening = providerReports.reduce(
+    (sum, item) => sum + item.calculated.openingBalance,
+    0
+  );
+
+  const totalOutstanding = providerReports.reduce(
+    (sum, item) => sum + item.calculated.outstanding,
+    0
+  );
+
+  const periodTransactions = loanReportData.flatMap((entry) =>
+    (entry.transactions || [])
+      .filter(isWithinDateRange)
+      .map((transaction) => ({
+        ...transaction,
+        providerName: entry.provider.providerName,
+      }))
+  );
+
+  const totalReceived = periodTransactions
+    .filter((item) => item.transactionType === "RECEIVED")
+    .reduce(
+      (sum, item) => sum + Number(item.amount || item.principalAmount || 0),
+      0
+    );
+
+  const totalPrincipalRepaid = periodTransactions
+    .filter((item) => item.transactionType === "REPAYMENT")
+    .reduce((sum, item) => sum + Number(item.principalAmount || 0), 0);
+
+  const totalInterestPaid = periodTransactions
+    .filter((item) => item.transactionType === "REPAYMENT")
+    .reduce((sum, item) => sum + Number(item.interestAmount || 0), 0);
+
+  const sortedTransactions = [...periodTransactions].sort(
+    (a, b) =>
+      new Date(b.transactionDate || 0) -
+      new Date(a.transactionDate || 0)
+  );
+
+  const summaryCards = [
+    {
+      title: "Total Opening Loan",
+      amount: totalOpening,
+      color: "#475569",
+    },
+    {
+      title: "Loan Received (Period)",
+      amount: totalReceived,
+      color: "#15803d",
+    },
+    {
+      title: "Principal Repaid (Period)",
+      amount: totalPrincipalRepaid,
+      color: "#2563eb",
+    },
+    {
+      title: "Interest Paid (Period)",
+      amount: totalInterestPaid,
+      color: "#b45309",
+    },
+    {
+      title: "Current Outstanding",
+      amount: totalOutstanding,
+      color: "#dc2626",
+    },
+  ];
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+      {/* HEADER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, color: "#1e293b" }}>
+              Loan Reports
+            </h2>
+
+            <p style={{ color: "#7b8494", margin: "6px 0 0", fontSize: 13 }}>
+              Loan overview, provider-wise outstanding and transaction reports
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={loadLoanReportData}
+            disabled={loanReportLoading}
+          >
+            {loanReportLoading ? "Loading..." : "Refresh Report"}
+          </button>
+        </div>
+      </div>
+
+      {/* DATE FILTER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 17, color: "#1e293b" }}>
+          Report Date Filter
+        </h3>
+
+        <div
+          style={{
+            padding: 17,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: 15,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>From Date</label>
+            <input
+              type="date"
+              style={fieldStyle}
+              value={loanReportFromDate}
+              onChange={(e) => setLoanReportFromDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>To Date</label>
+            <input
+              type="date"
+              style={fieldStyle}
+              value={loanReportToDate}
+              onChange={(e) => setLoanReportToDate(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 9 }}>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                if (
+                  loanReportFromDate &&
+                  loanReportToDate &&
+                  loanReportFromDate > loanReportToDate
+                ) {
+                  toast.error("From Date cannot be after To Date");
+                  return;
+                }
+              }}
+            >
+              Apply Date Filter
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLoanReportFromDate("");
+                setLoanReportToDate("");
+              }}
+              style={{
+                padding: "10px 15px",
+                minHeight: 43,
+                border: "1px solid #cbd5e1",
+                borderRadius: 9,
+                background: "#fff",
+                color: "#475569",
+                cursor: "pointer",
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {summaryCards.map((card) => (
+          <div
+            key={card.title}
+            className="panel"
+            style={{ padding: 19 }}
+          >
+            <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>
+              {card.title}
+            </p>
+
+            <h3
+              style={{
+                margin: "10px 0 0",
+                fontSize: 22,
+                color: card.color,
+              }}
+            >
+              ৳{formatAmount(card.amount)}
+            </h3>
+          </div>
+        ))}
+      </div>
+
+      {/* PROVIDER WISE REPORT */}
+      <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div
+          style={{
+            padding: "19px 22px",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 18, color: "#1e293b" }}>
+            Provider-wise Loan Report
+          </h3>
+
+          <p style={{ margin: "5px 0 0", fontSize: 13, color: "#64748b" }}>
+            Current outstanding is calculated from all recorded transactions
+          </p>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 850, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                {[
+                  "Provider",
+                  "Type",
+                  "Opening Balance",
+                  "Total Received",
+                  "Principal Repaid",
+                  "Interest Paid",
+                  "Outstanding",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      padding: 13,
+                      textAlign: "left",
+                      fontSize: 12,
+                      color: "#475569",
+                      borderBottom: "1px solid #e2e8f0",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {providerReports.map((entry) => (
+                <tr
+                  key={entry.provider._id}
+                  style={{ borderBottom: "1px solid #e2e8f0" }}
+                >
+                  <td style={{ padding: 13, fontSize: 13, fontWeight: 600 }}>
+                    {entry.provider.providerName}
+                  </td>
+
+                  <td style={{ padding: 13, fontSize: 13 }}>
+                    {entry.provider.providerType}
+                  </td>
+
+                  <td style={{ padding: 13, fontSize: 13 }}>
+                    ৳{formatAmount(entry.calculated.openingBalance)}
+                  </td>
+
+                  <td style={{ padding: 13, fontSize: 13, color: "#15803d" }}>
+                    ৳{formatAmount(entry.calculated.received)}
+                  </td>
+
+                  <td style={{ padding: 13, fontSize: 13, color: "#2563eb" }}>
+                    ৳{formatAmount(entry.calculated.principalRepaid)}
+                  </td>
+
+                  <td style={{ padding: 13, fontSize: 13, color: "#b45309" }}>
+                    ৳{formatAmount(entry.calculated.interestPaid)}
+                  </td>
+
+                  <td style={{ padding: 13, fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
+                    ৳{formatAmount(entry.calculated.outstanding)}
+                  </td>
+                </tr>
+              ))}
+
+              {!loanReportLoading && providerReports.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={{
+                      padding: 30,
+                      textAlign: "center",
+                      color: "#94a3b8",
+                    }}
+                  >
+                    No loan provider report found.
+                  </td>
+                </tr>
+              )}
+
+              {loanReportLoading && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={{
+                      padding: 30,
+                      textAlign: "center",
+                      color: "#64748b",
+                    }}
+                  >
+                    Loading report...
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* DATE WISE TRANSACTION REPORT */}
+      <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "19px 22px", borderBottom: "1px solid #e2e8f0" }}>
+          <h3 style={{ margin: 0, fontSize: 18, color: "#1e293b" }}>
+            Date-wise Transaction Report
+          </h3>
+
+          <p style={{ margin: "5px 0 0", fontSize: 13, color: "#64748b" }}>
+            {sortedTransactions.length} transactions in selected date range
+          </p>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 750, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                {[
+                  "Date",
+                  "Provider",
+                  "Transaction",
+                  "Principal",
+                  "Interest",
+                  "Total",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      padding: 13,
+                      textAlign: "left",
+                      fontSize: 12,
+                      color: "#475569",
+                      borderBottom: "1px solid #e2e8f0",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {sortedTransactions.map((item, index) => {
+                const isReceived = item.transactionType === "RECEIVED";
+                const principal = Number(
+                  item.principalAmount ?? (isReceived ? item.amount : 0) ?? 0
+                );
+                const interest = Number(item.interestAmount || 0);
+                const total = isReceived
+                  ? Number(item.amount || principal)
+                  : Number(item.amount || principal + interest);
+
+                return (
+                  <tr key={item._id || index} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: 13, fontSize: 13, whiteSpace: "nowrap" }}>
+                      {item.transactionDate
+                        ? new Date(item.transactionDate).toLocaleDateString("en-GB")
+                        : "-"}
+                    </td>
+
+                    <td style={{ padding: 13, fontSize: 13 }}>
+                      {item.providerName}
+                    </td>
+
+                    <td style={{ padding: 13, fontSize: 13 }}>
+                      {isReceived ? "Loan Received" : "Loan Repayment"}
+                    </td>
+
+                    <td style={{ padding: 13, fontSize: 13 }}>
+                      ৳{formatAmount(principal)}
+                    </td>
+
+                    <td style={{ padding: 13, fontSize: 13, color: "#b45309" }}>
+                      ৳{formatAmount(interest)}
+                    </td>
+
+                    <td style={{ padding: 13, fontSize: 13, fontWeight: 700 }}>
+                      ৳{formatAmount(total)}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {!loanReportLoading && sortedTransactions.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ padding: 30, textAlign: "center", color: "#94a3b8" }}>
+                    No transactions found for this date range.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function renderLoanAnalytics() {
+  const formatAmount = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const allTransactions = loanReportData.flatMap((entry) =>
+    (entry.transactions || []).map((item) => ({
+      ...item,
+      providerName: entry.provider.providerName,
+      providerType: entry.provider.providerType,
+    }))
+  );
+
+  const now = new Date();
+  const startDate = new Date();
+
+  if (loanAnalyticsPeriod === "3M") {
+    startDate.setMonth(now.getMonth() - 3);
+  } else if (loanAnalyticsPeriod === "6M") {
+    startDate.setMonth(now.getMonth() - 6);
+  } else if (loanAnalyticsPeriod === "12M") {
+    startDate.setMonth(now.getMonth() - 12);
+  }
+
+  const periodTransactions = allTransactions.filter((item) => {
+    if (loanAnalyticsPeriod === "ALL") return true;
+
+    const date = new Date(item.transactionDate);
+    return !Number.isNaN(date.getTime()) && date >= startDate;
+  });
+
+  const sum = (items, key) =>
+    items.reduce((total, item) => total + Number(item[key] || 0), 0);
+
+  const received = sum(
+    periodTransactions.filter((item) => item.transactionType === "RECEIVED"),
+    "principalAmount"
+  );
+
+  const principalRepaid = sum(
+    periodTransactions.filter((item) => item.transactionType === "REPAYMENT"),
+    "principalAmount"
+  );
+
+  const interestPaid = sum(
+    periodTransactions.filter((item) => item.transactionType === "REPAYMENT"),
+    "interestAmount"
+  );
+
+  const outstanding = loanReportData.reduce((total, entry) => {
+    const opening = Number(entry.provider.openingBalance || 0);
+    const transactions = entry.transactions || [];
+
+    const totalReceived = sum(
+      transactions.filter((item) => item.transactionType === "RECEIVED"),
+      "principalAmount"
+    );
+
+    const totalRepaid = sum(
+      transactions.filter((item) => item.transactionType === "REPAYMENT"),
+      "principalAmount"
+    );
+
+    return total + opening + totalReceived - totalRepaid;
+  }, 0);
+
+  const bankOutstanding = loanReportData
+    .filter((entry) => entry.provider.providerType === "BANK")
+    .reduce((total, entry) => {
+      const tx = entry.transactions || [];
+      return total +
+        Number(entry.provider.openingBalance || 0) +
+        sum(tx.filter((item) => item.transactionType === "RECEIVED"), "principalAmount") -
+        sum(tx.filter((item) => item.transactionType === "REPAYMENT"), "principalAmount");
+    }, 0);
+
+  const personOutstanding = loanReportData
+    .filter((entry) => entry.provider.providerType === "PERSON")
+    .reduce((total, entry) => {
+      const tx = entry.transactions || [];
+      return total +
+        Number(entry.provider.openingBalance || 0) +
+        sum(tx.filter((item) => item.transactionType === "RECEIVED"), "principalAmount") -
+        sum(tx.filter((item) => item.transactionType === "REPAYMENT"), "principalAmount");
+    }, 0);
+
+  const monthlyMap = {};
+
+  periodTransactions.forEach((item) => {
+    const date = new Date(item.transactionDate);
+    if (Number.isNaN(date.getTime())) return;
+
+    const month = date.toLocaleDateString("en-GB", {
+      month: "short",
+      year: "numeric",
+    });
+
+    if (!monthlyMap[month]) {
+      monthlyMap[month] = {
+        month,
+        received: 0,
+        repayment: 0,
+      };
+    }
+
+    if (item.transactionType === "RECEIVED") {
+      monthlyMap[month].received += Number(item.principalAmount || 0);
+    } else if (item.transactionType === "REPAYMENT") {
+      monthlyMap[month].repayment += Number(item.totalAmount || 0);
+    }
+  });
+
+  const monthlyData = Object.values(monthlyMap);
+
+  const cards = [
+    { title: "Current Outstanding", amount: outstanding, color: "#dc2626" },
+    { title: "Loan Received", amount: received, color: "#15803d" },
+    { title: "Principal Repaid", amount: principalRepaid, color: "#2563eb" },
+    { title: "Interest Paid", amount: interestPaid, color: "#b45309" },
+  ];
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, color: "#1e293b" }}>
+              Loan Analytics Dashboard
+            </h2>
+            <p style={{ margin: "6px 0 0", color: "#7b8494", fontSize: 13 }}>
+              Loan performance and outstanding analysis
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={loadLoanReportData}
+            disabled={loanReportLoading}
+          >
+            {loanReportLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div className="panel" style={{ padding: 20 }}>
+        <label style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>
+          Analytics Period
+        </label>
+
+        <select
+          value={loanAnalyticsPeriod}
+          onChange={(e) => setLoanAnalyticsPeriod(e.target.value)}
+          style={{
+            width: "100%",
+            maxWidth: 260,
+            display: "block",
+            marginTop: 8,
+            padding: 11,
+            border: "1px solid #dbe1ea",
+            borderRadius: 9,
+            minHeight: 43,
+            background: "#fff",
+          }}
+        >
+          <option value="ALL">All Time</option>
+          <option value="3M">Last 3 Months</option>
+          <option value="6M">Last 6 Months</option>
+          <option value="12M">Last 12 Months</option>
+        </select>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {cards.map((card) => (
+          <div key={card.title} className="panel" style={{ padding: 20 }}>
+            <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>
+              {card.title}
+            </p>
+            <h3 style={{ margin: "10px 0 0", color: card.color, fontSize: 22 }}>
+              ৳{formatAmount(card.amount)}
+            </h3>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 16,
+        }}
+      >
+        {[
+          { title: "Bank Loan Outstanding", amount: bankOutstanding },
+          { title: "Personal Loan Outstanding", amount: personOutstanding },
+        ].map((item) => (
+          <div key={item.title} className="panel" style={{ padding: 20 }}>
+            <p style={{ margin: 0, color: "#64748b", fontSize: 13 }}>
+              {item.title}
+            </p>
+            <h3 style={{ margin: "10px 0 0", color: "#334155", fontSize: 22 }}>
+              ৳{formatAmount(item.amount)}
+            </h3>
+          </div>
+        ))}
+      </div>
+
+      <div className="panel" style={{ padding: 22 }}>
+        <h3 style={{ margin: "0 0 18px", color: "#1e293b" }}>
+          Monthly Loan Received vs Repayment
+        </h3>
+
+        {monthlyData.length === 0 ? (
+          <p style={{ textAlign: "center", color: "#94a3b8", padding: 30 }}>
+            No transaction data available.
+          </p>
+        ) : (
+          <div style={{ width: "100%", height: 330 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip
+                  formatter={(value) => `৳${formatAmount(value)}`}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="received"
+                  name="Loan Received"
+                  stroke="#15803d"
+                  fill="#15803d"
+                  fillOpacity={0.15}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="repayment"
+                  name="Total Repayment"
+                  stroke="#2563eb"
+                  fill="#2563eb"
+                  fillOpacity={0.15}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
+function renderLoanAdjustment() {
+  const formatAmount = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const selectedProviderData = loanReportData.find(
+    (entry) => String(entry.provider._id) === String(loanAdjustmentProviderId)
+  );
+
+  const availableTransactions = (
+    selectedProviderData?.transactions || []
+  ).filter((item) => !item.isVoided);
+
+  const selectedTransaction = availableTransactions.find(
+    (item) => String(item._id) === String(loanAdjustmentTransactionId)
+  );
+
+  const inputStyle = {
+    width: "100%",
+    minHeight: 43,
+    padding: "10px 12px",
+    border: "1px solid #e2e8f0",
+    borderRadius: 9,
+    background: "#fff",
+    boxSizing: "border-box",
+    outline: "none",
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: 7,
+    color: "#475569",
+    fontSize: 13,
+    fontWeight: 600,
+  };
+
+  const fieldStyle = {
+    display: "grid",
+    gap: 6,
+  };
+
+  const handleTransactionSelect = (transactionId) => {
+    setLoanAdjustmentTransactionId(transactionId);
+
+    const transaction = availableTransactions.find(
+      (item) => String(item._id) === String(transactionId)
+    );
+
+    if (!transaction) {
+      setLoanAdjustmentForm({
+        providerId: loanAdjustmentProviderId,
+        accountId: "",
+        principalAmount: "",
+        interestAmount: "0",
+        transactionDate: "",
+        reference: "",
+        description: "",
+      });
+      return;
+    }
+
+    const accountId =
+      transaction.accountId?._id || transaction.accountId || "";
+
+    const transactionDate = transaction.transactionDate
+      ? new Date(transaction.transactionDate).toISOString().slice(0, 10)
+      : "";
+
+    setLoanAdjustmentForm({
+      providerId: loanAdjustmentProviderId,
+      accountId: String(accountId),
+      principalAmount: String(transaction.principalAmount ?? ""),
+      interestAmount: String(transaction.interestAmount ?? 0),
+      transactionDate,
+      reference: transaction.reference || "",
+      description: transaction.description || "",
+    });
+
+    setLoanAdjustmentReason("");
+  };
+
+  const handleAdjustmentSubmit = async () => {
+    if (!loanAdjustmentTransactionId || !selectedTransaction) {
+      toast.error("প্রথমে একটি Loan Transaction নির্বাচন করুন");
+      return;
+    }
+
+    if (!loanAdjustmentForm.providerId) {
+      toast.error("Provider নির্বাচন করুন");
+      return;
+    }
+
+    if (!loanAdjustmentForm.accountId) {
+      toast.error("Account নির্বাচন করুন");
+      return;
+    }
+
+    if (!loanAdjustmentForm.transactionDate) {
+      toast.error("Transaction Date নির্বাচন করুন");
+      return;
+    }
+
+    if (!loanAdjustmentReason.trim()) {
+      toast.error("Correction Reason লিখুন");
+      return;
+    }
+
+    const principalAmount = Number(
+      loanAdjustmentForm.principalAmount
+    );
+
+    const interestAmount = Number(
+      loanAdjustmentForm.interestAmount
+    );
+
+    if (
+      !Number.isFinite(principalAmount) ||
+      !Number.isFinite(interestAmount) ||
+      principalAmount < 0 ||
+      interestAmount < 0
+    ) {
+      toast.error("সঠিক Amount লিখুন");
+      return;
+    }
+
+    if (
+      selectedTransaction.transactionType === "RECEIVED" &&
+      (principalAmount <= 0 || interestAmount !== 0)
+    ) {
+      toast.error("Loan Received-এর Principal অবশ্যই 0-এর বেশি এবং Interest 0 হতে হবে");
+      return;
+    }
+
+    if (
+      selectedTransaction.transactionType === "REPAYMENT" &&
+      principalAmount + interestAmount <= 0
+    ) {
+      toast.error("Repayment Amount অবশ্যই 0-এর বেশি হতে হবে");
+      return;
+    }
+
+    if (
+      selectedTransaction.loanType === "BANK" &&
+      interestAmount !== 0
+    ) {
+      toast.error("Bank Loan-এ Interest Amount দেওয়া যাবে না");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      loanAdjustmentMethod === "DIRECT_EDIT"
+        ? "আপনি কি এই Transaction সরাসরি পরিবর্তন করতে চান?"
+        : "আপনি কি পুরোনো Transaction Reverse করে নতুন Entry তৈরি করতে চান?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoanAdjustmentSaving(true);
+
+      const payload = {
+        providerId: loanAdjustmentForm.providerId,
+        accountId: loanAdjustmentForm.accountId,
+        principalAmount,
+        interestAmount,
+        transactionDate: loanAdjustmentForm.transactionDate,
+        reference: loanAdjustmentForm.reference.trim(),
+        description: loanAdjustmentForm.description.trim(),
+        reason: loanAdjustmentReason.trim(),
+      };
+
+      const result =
+        loanAdjustmentMethod === "DIRECT_EDIT"
+          ? await apiRequest(
+              `/loans/adjust/${loanAdjustmentTransactionId}`,
+              {
+                method: "PUT",
+                body: JSON.stringify(payload),
+              }
+            )
+          : await apiRequest(
+              `/loans/reverse/${loanAdjustmentTransactionId}`,
+              {
+                method: "POST",
+                body: JSON.stringify(payload),
+              }
+            );
+
+      toast.success(
+        result.message || "Loan Adjustment সফলভাবে সম্পন্ন হয়েছে"
+      );
+
+      setLoanAdjustmentTransactionId("");
+      setLoanAdjustmentReason("");
+
+      setLoanAdjustmentForm({
+        providerId: loanAdjustmentProviderId,
+        accountId: "",
+        principalAmount: "",
+        interestAmount: "0",
+        transactionDate: "",
+        reference: "",
+        description: "",
+      });
+
+      await loadLoanReportData();
+    } catch (error) {
+      toast.error(error.message || "Loan Adjustment ব্যর্থ হয়েছে");
+    } finally {
+      setLoanAdjustmentSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, color: "#1e293b" }}>
+              Loan Adjustment & Correction
+            </h2>
+            <p style={{ margin: "6px 0 0", color: "#7b8494", fontSize: 13 }}>
+              Correct previous loan transactions with proper audit history.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={loadLoanReportData}
+            disabled={loanReportLoading || loanAdjustmentSaving}
+          >
+            {loanReportLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div className="panel" style={{ padding: 22 }}>
+        <h3 style={{ margin: "0 0 18px", color: "#1e293b" }}>
+          1. Select Loan Transaction
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Loan Provider *</label>
+            <select
+              value={loanAdjustmentProviderId}
+              onChange={(e) => {
+                const providerId = e.target.value;
+
+                setLoanAdjustmentProviderId(providerId);
+                setLoanAdjustmentTransactionId("");
+                setLoanAdjustmentReason("");
+
+                setLoanAdjustmentForm({
+                  providerId,
+                  accountId: "",
+                  principalAmount: "",
+                  interestAmount: "0",
+                  transactionDate: "",
+                  reference: "",
+                  description: "",
+                });
+              }}
+              style={inputStyle}
+            >
+              <option value="">Select Provider</option>
+              {loanReportProviders.map((provider) => (
+                <option key={provider._id} value={provider._id}>
+                  {provider.providerName} ({provider.providerType})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={fieldStyle}>
+            <label style={labelStyle}>Loan Transaction *</label>
+            <select
+              value={loanAdjustmentTransactionId}
+              onChange={(e) => handleTransactionSelect(e.target.value)}
+              style={inputStyle}
+              disabled={!loanAdjustmentProviderId}
+            >
+              <option value="">Select Transaction</option>
+              {availableTransactions.map((item) => (
+                <option key={item._id} value={item._id}>
+                  {item.transactionType} - ৳{formatAmount(item.totalAmount)} -{" "}
+                  {new Date(item.transactionDate).toLocaleDateString("en-GB")}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {loanAdjustmentProviderId && availableTransactions.length === 0 && (
+          <p style={{ color: "#b45309", fontSize: 13, marginTop: 14 }}>
+            এই Provider-এর কোনো Active Transaction পাওয়া যায়নি।
+          </p>
+        )}
+      </div>
+
+      {selectedTransaction && (
+        <>
+          <div
+            className="panel"
+            style={{
+              padding: 20,
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <h3 style={{ margin: "0 0 14px", color: "#1e293b" }}>
+              Original Transaction Information
+            </h3>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                gap: 14,
+              }}
+            >
+              <div>
+                <small style={{ color: "#64748b" }}>Transaction Type</small>
+                <h4 style={{ margin: "5px 0" }}>
+                  {selectedTransaction.transactionType}
+                </h4>
+              </div>
+
+              <div>
+                <small style={{ color: "#64748b" }}>Loan Type</small>
+                <h4 style={{ margin: "5px 0" }}>
+                  {selectedTransaction.loanType}
+                </h4>
+              </div>
+
+              <div>
+                <small style={{ color: "#64748b" }}>Principal</small>
+                <h4 style={{ margin: "5px 0" }}>
+                  ৳{formatAmount(selectedTransaction.principalAmount)}
+                </h4>
+              </div>
+
+              <div>
+                <small style={{ color: "#64748b" }}>Interest</small>
+                <h4 style={{ margin: "5px 0" }}>
+                  ৳{formatAmount(selectedTransaction.interestAmount)}
+                </h4>
+              </div>
+
+              <div>
+                <small style={{ color: "#64748b" }}>Total Amount</small>
+                <h4 style={{ margin: "5px 0" }}>
+                  ৳{formatAmount(selectedTransaction.totalAmount)}
+                </h4>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel" style={{ padding: 22 }}>
+            <h3 style={{ margin: "0 0 18px", color: "#1e293b" }}>
+              2. Correction Method
+            </h3>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+                gap: 14,
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  padding: 15,
+                  border: `1px solid ${
+                    loanAdjustmentMethod === "DIRECT_EDIT"
+                      ? "#2563eb"
+                      : "#e2e8f0"
+                  }`,
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  background:
+                    loanAdjustmentMethod === "DIRECT_EDIT"
+                      ? "#eff6ff"
+                      : "#fff",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="loanAdjustmentMethod"
+                  value="DIRECT_EDIT"
+                  checked={loanAdjustmentMethod === "DIRECT_EDIT"}
+                  onChange={(e) =>
+                    setLoanAdjustmentMethod(e.target.value)
+                  }
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  <strong>Direct Edit</strong>
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: 5,
+                      color: "#64748b",
+                    }}
+                  >
+                    পুরোনো Transaction সরাসরি পরিবর্তন হবে।
+                  </small>
+                </span>
+              </label>
+
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  padding: 15,
+                  border: `1px solid ${
+                    loanAdjustmentMethod === "REVERSE_NEW"
+                      ? "#2563eb"
+                      : "#e2e8f0"
+                  }`,
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  background:
+                    loanAdjustmentMethod === "REVERSE_NEW"
+                      ? "#eff6ff"
+                      : "#fff",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="loanAdjustmentMethod"
+                  value="REVERSE_NEW"
+                  checked={loanAdjustmentMethod === "REVERSE_NEW"}
+                  onChange={(e) =>
+                    setLoanAdjustmentMethod(e.target.value)
+                  }
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  <strong>Reverse + New Entry</strong>
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: 5,
+                      color: "#64748b",
+                    }}
+                  >
+                    পুরোনো Entry বাতিল হবে এবং নতুন Entry তৈরি হবে।
+                  </small>
+                </span>
+              </label>
+            </div>
+
+            <div
+              style={{
+                marginTop: 20,
+                padding: 14,
+                background: "#fff7ed",
+                border: "1px solid #fed7aa",
+                borderRadius: 9,
+                color: "#9a3412",
+                fontSize: 13,
+              }}
+            >
+              সতর্কতা: এই Correction Loan Balance এবং সংশ্লিষ্ট Account
+              Ledger-এ প্রভাব ফেলবে। Save করার আগে সব তথ্য যাচাই করুন।
+            </div>
+          </div>
+
+          <div className="panel" style={{ padding: 22 }}>
+            <h3 style={{ margin: "0 0 18px", color: "#1e293b" }}>
+              3. Correct Transaction Details
+            </h3>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 16,
+              }}
+            >
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Provider *</label>
+                <select
+                  value={loanAdjustmentForm.providerId}
+                  onChange={(e) =>
+                    setLoanAdjustmentForm((prev) => ({
+                      ...prev,
+                      providerId: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  {loanReportProviders.map((provider) => (
+                    <option key={provider._id} value={provider._id}>
+                      {provider.providerName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Account *</label>
+                <select
+                  value={loanAdjustmentForm.accountId}
+                  onChange={(e) =>
+                    setLoanAdjustmentForm((prev) => ({
+                      ...prev,
+                      accountId: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                >
+                  <option value="">Select Account</option>
+                  {accounts
+                    .filter((account) => account.isActive !== false)
+                    .map((account) => (
+                      <option key={account._id} value={account._id}>
+                        {account.accountName} ({account.accountType})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Principal Amount *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={loanAdjustmentForm.principalAmount}
+                  onChange={(e) =>
+                    setLoanAdjustmentForm((prev) => ({
+                      ...prev,
+                      principalAmount: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Interest Amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={loanAdjustmentForm.interestAmount}
+                  disabled={selectedTransaction.loanType === "BANK"}
+                  onChange={(e) =>
+                    setLoanAdjustmentForm((prev) => ({
+                      ...prev,
+                      interestAmount: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Transaction Date *</label>
+                <input
+                  type="date"
+                  value={loanAdjustmentForm.transactionDate}
+                  onChange={(e) =>
+                    setLoanAdjustmentForm((prev) => ({
+                      ...prev,
+                      transactionDate: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Reference</label>
+                <input
+                  type="text"
+                  value={loanAdjustmentForm.reference}
+                  onChange={(e) =>
+                    setLoanAdjustmentForm((prev) => ({
+                      ...prev,
+                      reference: e.target.value,
+                    }))
+                  }
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Description</label>
+                <textarea
+                  rows={3}
+                  value={loanAdjustmentForm.description}
+                  onChange={(e) =>
+                    setLoanAdjustmentForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  style={{ ...inputStyle, resize: "vertical" }}
+                />
+              </div>
+
+              <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Correction Reason *</label>
+                <textarea
+                  rows={3}
+                  value={loanAdjustmentReason}
+                  onChange={(e) =>
+                    setLoanAdjustmentReason(e.target.value)
+                  }
+                  placeholder="কেন এই Transaction পরিবর্তন করছেন তা লিখুন..."
+                  style={{ ...inputStyle, resize: "vertical" }}
+                />
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: 22,
+              }}
+            >
+              <button
+                type="button"
+                className="primary-button"
+                onClick={handleAdjustmentSubmit}
+                disabled={loanAdjustmentSaving}
+                style={{ minWidth: 190 }}
+              >
+                {loanAdjustmentSaving
+                  ? "Processing..."
+                  : loanAdjustmentMethod === "DIRECT_EDIT"
+                  ? "Save Correction"
+                  : "Reverse & Create New"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+
+function startEditLoanProvider(provider) {
+  setLoanProviderEditId(provider._id);
+
+  setLoanProviderForm({
+    providerName: provider.providerName || "",
+    providerType: provider.providerType || "BANK",
+    mobile: provider.mobile || "",
+    address: provider.address || "",
+    bankName: provider.bankName || "",
+    accountNumber: provider.accountNumber || "",
+    branchName: provider.branchName || "",
+    openingBalance: String(provider.openingBalance || 0),
+    openingBalanceDate: provider.openingBalanceDate
+      ? new Date(provider.openingBalanceDate).toISOString().slice(0, 10)
+      : "",
+    notes: provider.notes || "",
+  });
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+
+function cancelEditLoanProvider() {
+  setLoanProviderEditId("");
+  setLoanProviderForm({
+    providerName: "",
+    providerType: "BANK",
+    mobile: "",
+    address: "",
+    bankName: "",
+    accountNumber: "",
+    branchName: "",
+    openingBalance: "",
+    openingBalanceDate: "",
+    notes: "",
+  });
+}
+
+
+// ======================================
+// LOAN PROVIDERS PAGE
+// ======================================
+
+
+
+function renderLoanProviders() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 9,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+    minHeight: 43,
+    color: "#334155",
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: 7,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+  };
+
+  const sectionStyle = {
+    padding: 17,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+  };
+
+  const sectionTitleStyle = {
+    margin: "0 0 15px",
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#334155",
+  };
+
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+    gap: 14,
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+      {/* PAGE HEADER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0, color: "#1e293b" }}>
+              Loan Providers
+            </h2>
+            <p style={{ color: "#7b8494", margin: "6px 0 0", fontSize: 13 }}>
+              Bank এবং Personal Loan Provider পরিচালনা
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={loadLoanProviders}
+            disabled={loanProviderLoading}
+          >
+            {loanProviderLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {/* SEARCH AND FILTER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={gridStyle}>
+          <div>
+            <label style={labelStyle}>Search Provider</label>
+            <input
+              style={fieldStyle}
+              placeholder="Provider name or mobile"
+              value={loanProviderSearch}
+              onChange={(e) => setLoanProviderSearch(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Provider Type</label>
+            <select
+              style={fieldStyle}
+              value={loanProviderTypeFilter}
+              onChange={(e) => setLoanProviderTypeFilter(e.target.value)}
+            >
+              <option value="ALL">All Providers</option>
+              <option value="BANK">Bank</option>
+              <option value="PERSON">Personal</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ADD / EDIT LOAN PROVIDER FORM */}
+      <div
+        className="panel"
+        style={{
+          padding: 0,
+          borderRadius: 16,
+          overflow: "hidden",
+        }}
+      >
+        {/* FORM HEADER */}
+        <div
+          style={{
+            padding: "20px 22px",
+            background: "#fff",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 20, color: "#1e293b" }}>
+            {loanProviderEditId
+              ? "Edit Loan Provider"
+              : "Add New Loan Provider"}
+          </h3>
+
+          <p style={{ margin: "5px 0 0", fontSize: 13, color: "#64748b" }}>
+            {loanProviderEditId
+              ? "Update existing Loan Provider information"
+              : "Register Bank or Personal Loan Provider"}
+          </p>
+        </div>
+
+        <form onSubmit={saveLoanProvider}>
+          <div style={{ padding: 22 }}>
+
+            {/* PROVIDER INFORMATION */}
+            <div style={sectionStyle}>
+              <h4 style={sectionTitleStyle}>
+                Provider Information
+              </h4>
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>Provider Name *</label>
+                  <input
+                    style={fieldStyle}
+                    required
+                    placeholder="Provider Name"
+                    value={loanProviderForm.providerName}
+                    onChange={(e) =>
+                      setLoanProviderForm((prev) => ({
+                        ...prev,
+                        providerName: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Provider Type *</label>
+                  <select
+                    style={fieldStyle}
+                    value={loanProviderForm.providerType}
+                    onChange={(e) =>
+                      setLoanProviderForm((prev) => ({
+                        ...prev,
+                        providerType: e.target.value,
+                        bankName:
+                          e.target.value === "BANK" ? prev.bankName : "",
+                        accountNumber:
+                          e.target.value === "BANK" ? prev.accountNumber : "",
+                        branchName:
+                          e.target.value === "BANK" ? prev.branchName : "",
+                      }))
+                    }
+                  >
+                    <option value="BANK">Bank Loan</option>
+                    <option value="PERSON">Personal Loan</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Mobile Number</label>
+                  <input
+                    style={fieldStyle}
+                    placeholder="Mobile Number"
+                    value={loanProviderForm.mobile}
+                    onChange={(e) =>
+                      setLoanProviderForm((prev) => ({
+                        ...prev,
+                        mobile: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Address</label>
+                  <input
+                    style={fieldStyle}
+                    placeholder="Address"
+                    value={loanProviderForm.address}
+                    onChange={(e) =>
+                      setLoanProviderForm((prev) => ({
+                        ...prev,
+                        address: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* BANK INFORMATION */}
+            {loanProviderForm.providerType === "BANK" && (
+              <div style={{ ...sectionStyle, marginTop: 18 }}>
+                <h4 style={sectionTitleStyle}>
+                  Bank Information
+                </h4>
+
+                <div style={gridStyle}>
+                  <div>
+                    <label style={labelStyle}>Bank Name *</label>
+                    <input
+                      style={fieldStyle}
+                      required
+                      placeholder="Bank Name"
+                      value={loanProviderForm.bankName}
+                      onChange={(e) =>
+                        setLoanProviderForm((prev) => ({
+                          ...prev,
+                          bankName: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Account Number</label>
+                    <input
+                      style={fieldStyle}
+                      placeholder="Account Number"
+                      value={loanProviderForm.accountNumber}
+                      onChange={(e) =>
+                        setLoanProviderForm((prev) => ({
+                          ...prev,
+                          accountNumber: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label style={labelStyle}>Branch Name</label>
+                    <input
+                      style={fieldStyle}
+                      placeholder="Branch Name"
+                      value={loanProviderForm.branchName}
+                      onChange={(e) =>
+                        setLoanProviderForm((prev) => ({
+                          ...prev,
+                          branchName: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* OPENING BALANCE */}
+            <div style={{ ...sectionStyle, marginTop: 18 }}>
+              <h4 style={sectionTitleStyle}>
+                Opening Loan Balance
+              </h4>
+
+              {loanProviderEditId && (
+                <p style={{ color: "#b45309", fontSize: 12, margin: "0 0 12px" }}>
+                  Transaction থাকলে Backend Opening Balance পরিবর্তন করতে দেবে না।
+                </p>
+              )}
+
+              <div style={gridStyle}>
+                <div>
+                  <label style={labelStyle}>Opening Balance (৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    style={fieldStyle}
+                    value={loanProviderForm.openingBalance}
+                    onChange={(e) =>
+                      setLoanProviderForm((prev) => ({
+                        ...prev,
+                        openingBalance: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Opening Balance Date</label>
+                  <input
+                    type="date"
+                    style={fieldStyle}
+                    value={loanProviderForm.openingBalanceDate}
+                    onChange={(e) =>
+                      setLoanProviderForm((prev) => ({
+                        ...prev,
+                        openingBalanceDate: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* NOTES */}
+            <div style={{ marginTop: 18 }}>
+              <label style={labelStyle}>Notes</label>
+              <textarea
+                rows={3}
+                placeholder="Write additional notes..."
+                style={{
+                  ...fieldStyle,
+                  minHeight: 85,
+                  resize: "vertical",
+                }}
+                value={loanProviderForm.notes}
+                onChange={(e) =>
+                  setLoanProviderForm((prev) => ({
+                    ...prev,
+                    notes: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* FORM FOOTER */}
+          <div
+            style={{
+              padding: "16px 22px",
+              borderTop: "1px solid #e2e8f0",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+              background: "#fff",
+            }}
+          >
+            {loanProviderEditId && (
+              <button
+                type="button"
+                onClick={cancelEditLoanProvider}
+                disabled={loanProviderSaving}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  background: "#fff",
+                  color: "#475569",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            )}
+
+            <button
+              type="submit"
+              className="primary-button"
+              disabled={loanProviderSaving}
+            >
+              {loanProviderSaving
+                ? "Saving..."
+                : loanProviderEditId
+                  ? "Update Loan Provider"
+                  : "Save Loan Provider"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* PROVIDER LIST */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 16, color: "#1e293b" }}>
+            Provider List ({loanProviders.length})
+          </h3>
+        </div>
+
+        {loanProviderLoading ? (
+          <p style={{ color: "#7b8494" }}>
+            Loading Loan Providers...
+          </p>
+        ) : loanProviders.length === 0 ? (
+          <p style={{ color: "#7b8494", fontSize: 13 }}>
+            এখনো কোনো Loan Provider পাওয়া যায়নি।
+          </p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>PROVIDER NAME</th>
+                  <th>TYPE</th>
+                  <th>MOBILE</th>
+                  <th>BANK NAME</th>
+                  <th>ACCOUNT NUMBER</th>
+                  <th>OPENING LOAN BALANCE</th>
+                  <th>STATUS</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {loanProviders.map((provider) => (
+                  <tr key={provider._id}>
+                    <td>
+                      <strong>{provider.providerName}</strong>
+                    </td>
+
+                    <td>{provider.providerType}</td>
+
+                    <td>{provider.mobile || "-"}</td>
+
+                    <td>{provider.bankName || "-"}</td>
+
+                    <td>{provider.accountNumber || "-"}</td>
+
+                    <td>
+                      ৳
+                      {Number(provider.openingBalance || 0).toLocaleString(
+                        "en-BD"
+                      )}
+                    </td>
+
+                    <td>
+                      <span
+                        style={{
+                          color: provider.isActive ? "#15803d" : "#dc2626",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {provider.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => startEditLoanProvider(provider)}
+                          style={{
+                            padding: "7px 12px",
+                            borderRadius: 8,
+                            border: "1px solid #bfdbfe",
+                            background: "#eff6ff",
+                            color: "#1d4ed8",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleLoanProviderStatus(provider)}
+                          style={{
+                            padding: "7px 12px",
+                            borderRadius: 8,
+                            border: "1px solid",
+                            borderColor: provider.isActive
+                              ? "#fecaca"
+                              : "#bbf7d0",
+                            background: provider.isActive
+                              ? "#fef2f2"
+                              : "#f0fdf4",
+                            color: provider.isActive
+                              ? "#dc2626"
+                              : "#15803d",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {provider.isActive ? "Deactivate" : "Activate"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+async function toggleLoanProviderStatus(provider) {
+  const nextStatus = !provider.isActive;
+
+  const confirmed = window.confirm(
+    `${provider.providerName} Provider-কে ${
+      nextStatus ? "Activate" : "Deactivate"
+    } করতে চান?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const result = await apiRequest(
+      `/loans/providers/${provider._id}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          isActive: nextStatus,
+        }),
+      }
+    );
+
+    toast.success(
+      result.message || "Provider status updated successfully"
+    );
+
+    await loadLoanProviders();
+    await loadLoanReportData();
+  } catch (error) {
+    toast.error(error.message || "Provider status update failed");
+  }
+}
+
+
+function renderAccounts() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 6,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#475569",
+    marginBottom: 6,
+  };
+
+  const activeAccounts = accounts.filter(
+    (account) => account.isActive !== false
+  );
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+
+     
+
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0 }}>Account Management</h2>
+            <p style={{ color: "#7b8494", margin: "6px 0 0" }}>
+              Cash, Bank এবং bKash Account পরিচালনা
+            </p>
+          </div>
+
+          <button
+            className="primary-button"
+            onClick={loadAccounts}
+            disabled={accountLoading}
+          >
+            {accountLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div className="panel" style={{ padding: 22 }}>
+        <h3 style={{ margin: "0 0 18px", fontSize: 16 }}>
+          Add New Account
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Account Type *</label>
+            <select
+              style={fieldStyle}
+              value={accountForm.accountType}
+              onChange={(e) =>
+                setAccountForm((prev) => ({
+                  ...prev,
+                  accountType: e.target.value,
+                  bankName: "",
+                  accountNumber: "",
+                  branchName: "",
+                }))
+              }
+            >
+              <option value="CASH">Cash</option>
+              <option value="BANK">Bank</option>
+              <option value="BKASH">bKash</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Account Name *</label>
+            <input
+              style={fieldStyle}
+              placeholder="যেমন: Main Cash"
+              value={accountForm.accountName}
+              onChange={(e) =>
+                setAccountForm((prev) => ({
+                  ...prev,
+                  accountName: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {accountForm.accountType === "BANK" && (
+            <>
+              <div>
+                <label style={labelStyle}>Bank Name *</label>
+                <input
+                  style={fieldStyle}
+                  placeholder="যেমন: Sonali Bank"
+                  value={accountForm.bankName}
+                  onChange={(e) =>
+                    setAccountForm((prev) => ({
+                      ...prev,
+                      bankName: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Account Number</label>
+                <input
+                  style={fieldStyle}
+                  placeholder="Bank Account Number"
+                  value={accountForm.accountNumber}
+                  onChange={(e) =>
+                    setAccountForm((prev) => ({
+                      ...prev,
+                      accountNumber: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Branch Name</label>
+                <input
+                  style={fieldStyle}
+                  placeholder="Branch Name"
+                  value={accountForm.branchName}
+                  onChange={(e) =>
+                    setAccountForm((prev) => ({
+                      ...prev,
+                      branchName: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label style={labelStyle}>Opening Balance (৳)</label>
+            <input
+              type="number"
+              min="0"
+              style={fieldStyle}
+              value={accountForm.openingBalance}
+              onChange={(e) =>
+                setAccountForm((prev) => ({
+                  ...prev,
+                  openingBalance: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Opening Balance Date</label>
+            <input
+              type="date"
+              style={fieldStyle}
+              value={accountForm.openingBalanceDate}
+              onChange={(e) =>
+                setAccountForm((prev) => ({
+                  ...prev,
+                  openingBalanceDate: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <input
+              style={fieldStyle}
+              placeholder="Optional notes"
+              value={accountForm.notes}
+              onChange={(e) =>
+                setAccountForm((prev) => ({
+                  ...prev,
+                  notes: e.target.value,
+                }))
+              }
+            />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <button
+            className="primary-button"
+            onClick={saveAccount}
+            disabled={accountSaving}
+          >
+            <Plus size={16} />
+            {accountSaving ? "Saving..." : "Save Account"}
+          </button>
+        </div>
+      </div>
+
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16 }}>Account List</h3>
+            <p style={{ color: "#7b8494", margin: "6px 0 0" }}>
+              Total Active Accounts: {activeAccounts.length}
+            </p>
+          </div>
+        </div>
+
+        {accountLoading ? (
+          <p>Loading accounts...</p>
+        ) : accounts.length === 0 ? (
+          <p style={{ color: "#7b8494", fontSize: 13 }}>
+            এখনো কোনো Account তৈরি করা হয়নি।
+          </p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>ACCOUNT NAME</th>
+                  <th>TYPE</th>
+                  <th>BANK</th>
+                  <th>ACCOUNT NUMBER</th>
+                  <th>OPENING BALANCE</th>
+                  <th>CURRENT BALANCE</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+
+              
+<tbody>
+  {accounts.map((account) => (
+    <tr key={account._id}>
+      <td>{account.accountName}</td>
+
+      <td>{account.accountType}</td>
+
+      <td>{account.bankName || "-"}</td>
+
+      <td>{account.accountNumber || "-"}</td>
+
+      <td style={{ textAlign: "left", whiteSpace: "nowrap" }}>
+        ৳ {Number(account.openingBalance || 0).toLocaleString("en-BD")}
+      </td>
+
+      <td
+        style={{
+          textAlign: "left",
+          whiteSpace: "nowrap",
+          fontWeight: 700,
+          color: "#15803d",
+        }}
+      >
+        ৳ {Number(
+          account.currentBalance ?? account.openingBalance ?? 0
+        ).toLocaleString("en-BD")}
+      </td>
+
+      <td>
+        {account.isActive !== false ? "Active" : "Inactive"}
+      </td>
+    </tr>
+  ))}
+</tbody>
+
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 
 
@@ -23036,7 +29144,7 @@ async function handleAdminLogout() {
             </div>
             <button className="icon-button notification">
               <Bell size={20} /><span />
-            </button>
+             </button>
             <div className="profile">
               <div className="profile-avatar">A</div>
               <div className="profile-info">
@@ -23055,6 +29163,16 @@ async function handleAdminLogout() {
   {activePage === "Dashboard" && renderDashboard()}
   {activePage === "Inventory Dashboard" && renderInventoryDashboard()}
   {activePage === "Products" && renderProducts()}
+{activePage === "Add Account" && renderAccounts()}
+{activePage === "Account Transactions" && renderAccountTransactions()}
+{activePage === "Transaction History" && renderTransactionHistory()}
+{activePage === "Loan Providers" && renderLoanProviders()}
+{activePage === "Loan Received" && renderLoanReceived()}
+{activePage === "Loan Repayment" && renderLoanRepayment()}
+{activePage === "Loan History" && renderLoanHistory()}
+{activePage === "Loan Reports" && renderLoanReports()}
+{activePage === "Loan Analytics" && renderLoanAnalytics()}
+{activePage === "Loan Adjustment & Correction" && renderLoanAdjustment()}
   {activePage === "Suppliers" && renderSuppliers()}
   {activePage === "Customer List" && renderCustomers()}
   {activePage === "Customer Due Summary" &&
@@ -23131,6 +29249,7 @@ async function handleAdminLogout() {
     "Supplier Report",
     "All Customer Report",
     "Categories",
+    "Accounts",
     "Purchases",
     "Commission Management",
     "Commission History",
@@ -23201,7 +29320,11 @@ async function handleAdminLogout() {
   );
 }
 
+
+
 function Field({ label, children }) {
+
+
   return (
     <label style={fieldStyle}>
       <span style={{ fontSize: 13, fontWeight: 600, color: "#465064" }}>{label}</span>

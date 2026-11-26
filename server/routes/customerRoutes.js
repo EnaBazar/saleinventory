@@ -5,6 +5,9 @@ import Customer from "../models/Customer.js";
 import CustomerLedger from "../models/CustomerLedger.js";
 import ActivityLog from "../models/ActivityLog.js";
 import requireAdmin from "../middleware/requireAdmin.js";
+import Account from "../models/Account.js";
+import AccountLedger from "../models/AccountLedger.js";
+
 
 const router = express.Router();
 
@@ -933,6 +936,7 @@ router.delete("/:id", async (req, res) => {
 // ADD CUSTOMER PAYMENT
 // ========================================
 
+
 router.post("/:id/payments", async (req, res) => {
   try {
     const { id } = req.params;
@@ -940,6 +944,7 @@ router.post("/:id/payments", async (req, res) => {
     const {
       amount,
       paymentMethod,
+      accountId,
       transactionId,
       reference,
       description,
@@ -977,6 +982,62 @@ router.post("/:id/payments", async (req, res) => {
         message: "Invalid payment method",
       });
     }
+// =====================================
+// ACCOUNT VALIDATION
+// =====================================
+
+let selectedAccount = null;
+
+const accountRequiredMethods = ["CASH", "BANK", "BKASH"];
+
+if (
+  accountRequiredMethods.includes(paymentMethod) &&
+  !accountId
+) {
+  return res.status(400).json({
+    success: false,
+    message: `${paymentMethod} payment-এর জন্য Account নির্বাচন করুন`,
+  });
+}
+
+if (accountId) {
+  if (!mongoose.Types.ObjectId.isValid(accountId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid account ID",
+    });
+  }
+
+  selectedAccount = await Account.findOne({
+    _id: accountId,
+    isActive: true,
+  });
+
+  if (!selectedAccount) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected account not found or inactive",
+    });
+  }
+
+  if (selectedAccount.accountType !== paymentMethod) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected Account does not match Payment Method",
+    });
+  }
+}
+
+    const paymentDate = transactionDate
+      ? new Date(transactionDate)
+      : new Date();
+
+    if (Number.isNaN(paymentDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid transaction date",
+      });
+    }
 
     const payment = await CustomerLedger.create({
       customerId: id,
@@ -985,13 +1046,34 @@ router.post("/:id/payments", async (req, res) => {
       debit: 0,
       credit: paymentAmount,
       paymentMethod,
+      accountId: selectedAccount?._id || null,
       transactionId: transactionId || "",
       reference: reference || "",
       description: description || "Customer payment",
-      transactionDate: transactionDate
-        ? new Date(transactionDate)
-        : new Date(),
+      transactionDate: paymentDate,
     });
+
+    try {
+      if (selectedAccount) {
+     await AccountLedger.create({
+  accountId: selectedAccount._id,
+  customerPaymentId: payment._id,
+  transactionType: "DEPOSIT",
+  direction: "IN",
+  amount: paymentAmount,
+
+          reference: reference || "",
+          transactionId: transactionId || "",
+          description:
+            description ||
+            `Customer Collection - ${customer.name || "Customer"}`,
+          transactionDate: paymentDate,
+        });
+      }
+    } catch (ledgerError) {
+      await CustomerLedger.findByIdAndDelete(payment._id);
+      throw ledgerError;
+    }
 
     await recalculateCustomerLedgerBalances(id);
 
@@ -1009,6 +1091,9 @@ router.post("/:id/payments", async (req, res) => {
     });
   }
 });
+
+
+
 // ========================================
 // EDIT CUSTOMER PAYMENT
 // ========================================
@@ -1020,6 +1105,7 @@ router.put("/:id/payments/:paymentId", requireAdmin, async (req, res) => {
     const {
       amount,
       paymentMethod,
+      accountId,
       transactionId,
       reference,
       description,
@@ -1037,7 +1123,7 @@ router.put("/:id/payments/:paymentId", requireAdmin, async (req, res) => {
       });
     }
 
-    if (!reason || !reason.trim()) {
+    if (!reason || !String(reason).trim()) {
       return res.status(400).json({
         success: false,
         message: "Correction reason is required",
@@ -1091,6 +1177,62 @@ router.put("/:id/payments/:paymentId", requireAdmin, async (req, res) => {
       updateData.paymentMethod = paymentMethod;
     }
 
+// =====================================
+// ACCOUNT VALIDATION
+// =====================================
+
+let selectedAccount = null;
+
+const targetAccountId =
+  accountId !== undefined ? accountId : payment.accountId;
+
+const finalPaymentMethod =
+  updateData.paymentMethod || payment.paymentMethod;
+
+const accountRequiredMethods = ["CASH", "BANK", "BKASH"];
+
+if (
+  accountRequiredMethods.includes(finalPaymentMethod) &&
+  !targetAccountId
+) {
+  return res.status(400).json({
+    success: false,
+    message: `${finalPaymentMethod} payment-এর জন্য একটি Account নির্বাচন করুন`,
+  });
+}
+
+if (targetAccountId) {
+  if (!mongoose.Types.ObjectId.isValid(targetAccountId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid account ID",
+    });
+  }
+
+  selectedAccount = await Account.findOne({
+    _id: targetAccountId,
+    isActive: true,
+  });
+
+  if (!selectedAccount) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected account not found or inactive",
+    });
+  }
+
+  if (selectedAccount.accountType !== finalPaymentMethod) {
+    return res.status(400).json({
+      success: false,
+      message: "Selected Account does not match Payment Method",
+    });
+  }
+}
+
+if (accountId !== undefined) {
+  updateData.accountId = selectedAccount?._id || null;
+}
+
     if (transactionId !== undefined)
       updateData.transactionId = transactionId;
 
@@ -1117,6 +1259,7 @@ router.put("/:id/payments/:paymentId", requireAdmin, async (req, res) => {
       amount: payment.amount,
       credit: payment.credit,
       paymentMethod: payment.paymentMethod,
+      accountId: payment.accountId || null,
       transactionId: payment.transactionId,
       reference: payment.reference,
       description: payment.description,
@@ -1128,67 +1271,90 @@ router.put("/:id/payments/:paymentId", requireAdmin, async (req, res) => {
       ...updateData,
     };
 
-  payment.correctionHistory.push({
-  correctedAt: new Date(),
+    payment.correctionHistory.push({
+      correctedAt: new Date(),
 
-  correctedBy: {
-    adminId: req.admin.adminId,
-    name: req.admin.name,
-    username: req.admin.username,
-  },
+      correctedBy: {
+        adminId: req.admin.adminId,
+        name: req.admin.name,
+        username: req.admin.username,
+      },
 
-  reason: reason.trim(),
-  oldValues,
-  newValues,
-});
+      reason: reason.trim(),
+      oldValues,
+      newValues,
+    });
 
     Object.assign(payment, updateData);
-await ActivityLog.create({
-  adminId: req.admin.adminId,
-  adminName: req.admin.name,
-  adminUsername: req.admin.username,
 
-  action: "EDIT",
-  module: "CUSTOMER_PAYMENT",
-
-  description: `Customer payment corrected. Reason: ${reason.trim()}`,
-
-  targetId: payment._id,
-  targetName: payment.customerId.toString(),
-
-  metadata: {
-    customerId: id,
-    paymentId: payment._id,
-    oldValues,
-    newValues,
-    reason: reason.trim(),
-  },
-});
     await payment.save();
-await ActivityLog.create({
-  adminId: req.admin.adminId,
-  adminName: req.admin.name,
-  adminUsername: req.admin.username,
 
-  action: "VOID",
-  module: "CUSTOMER_PAYMENT",
+    // =====================================
+    // UPDATE LINKED ACCOUNT LEDGER
+    // =====================================
 
-  description: `Customer payment voided. Reason: ${reason.trim()}`,
+    let accountTransaction = await AccountLedger.findOne({
+      customerPaymentId: payment._id,
+    });
 
-  targetId: payment._id,
-  targetName: id,
+    if (selectedAccount) {
+      if (!accountTransaction) {
+        accountTransaction = new AccountLedger({
+          customerPaymentId: payment._id,
+          transactionType: "DEPOSIT",
+          direction: "IN",
+        });
+      }
 
-  metadata: {
-    customerId: id,
-    paymentId: payment._id,
-    amount: payment.amount,
-    paymentMethod: payment.paymentMethod,
-    transactionId: payment.transactionId,
-    reference: payment.reference,
-    transactionDate: payment.transactionDate,
-    reason: reason.trim(),
-  },
-});
+      accountTransaction.accountId = selectedAccount._id;
+      accountTransaction.transactionType = "DEPOSIT";
+      accountTransaction.direction = "IN";
+      accountTransaction.amount = payment.amount;
+      accountTransaction.reference = payment.reference || "";
+      accountTransaction.transactionId = payment.transactionId || "";
+      accountTransaction.description =
+        payment.description || "Customer Collection";
+      accountTransaction.transactionDate = payment.transactionDate;
+      accountTransaction.isVoided = false;
+      accountTransaction.voidedAt = null;
+      accountTransaction.voidReason = "";
+
+      await accountTransaction.save();
+    } else if (accountTransaction && !accountTransaction.isVoided) {
+      accountTransaction.isVoided = true;
+      accountTransaction.voidedAt = new Date();
+      accountTransaction.voidReason =
+        "Account removed during customer payment correction";
+
+      await accountTransaction.save();
+    }
+
+    // =====================================
+    // ACTIVITY LOG
+    // =====================================
+
+    await ActivityLog.create({
+      adminId: req.admin.adminId,
+      adminName: req.admin.name,
+      adminUsername: req.admin.username,
+
+      action: "EDIT",
+      module: "CUSTOMER_PAYMENT",
+
+      description: `Customer payment corrected. Reason: ${reason.trim()}`,
+
+      targetId: payment._id,
+      targetName: id,
+
+      metadata: {
+        customerId: id,
+        paymentId: payment._id,
+        oldValues,
+        newValues,
+        reason: reason.trim(),
+      },
+    });
+
     await recalculateCustomerLedgerBalances(id);
 
     res.json({
@@ -1225,7 +1391,7 @@ router.patch("/:id/payments/:paymentId/void", requireAdmin, async (req, res) => 
       });
     }
 
-    if (!reason || !reason.trim()) {
+    if (!reason || !String(reason).trim()) {
       return res.status(400).json({
         success: false,
         message: "Void reason is required",
@@ -1248,22 +1414,70 @@ router.patch("/:id/payments/:paymentId/void", requireAdmin, async (req, res) => 
     if (payment.isVoided) {
       return res.status(400).json({
         success: false,
-        message: "Payment is already voided",
+        message: "Payment already voided",
       });
     }
 
-  payment.isVoided = true;
-payment.voidedAt = new Date();
+    // =====================================
+    // VOID CUSTOMER PAYMENT
+    // =====================================
 
-payment.voidedBy = {
-  adminId: req.admin.adminId,
-  name: req.admin.name,
-  username: req.admin.username,
-};
-
-payment.voidReason = reason.trim();
+    payment.isVoided = true;
+    payment.voidedAt = new Date();
+    payment.voidedBy = {
+      adminId: req.admin.adminId,
+      name: req.admin.name,
+      username: req.admin.username,
+    };
+    payment.voidReason = reason.trim();
 
     await payment.save();
+
+    // =====================================
+    // VOID LINKED ACCOUNT LEDGER
+    // =====================================
+
+    const accountTransaction = await AccountLedger.findOne({
+      customerPaymentId: payment._id,
+    });
+
+    if (accountTransaction && !accountTransaction.isVoided) {
+      accountTransaction.isVoided = true;
+      accountTransaction.voidedAt = new Date();
+      accountTransaction.voidReason = reason.trim();
+
+      await accountTransaction.save();
+    }
+
+    // =====================================
+    // ACTIVITY LOG
+    // =====================================
+
+    await ActivityLog.create({
+      adminId: req.admin.adminId,
+      adminName: req.admin.name,
+      adminUsername: req.admin.username,
+
+      action: "VOID",
+      module: "CUSTOMER_PAYMENT",
+
+      description: `Customer payment voided. Reason: ${reason.trim()}`,
+
+      targetId: payment._id,
+      targetName: id,
+
+      metadata: {
+        customerId: id,
+        paymentId: payment._id,
+        accountId: payment.accountId || null,
+        amount: payment.amount,
+        reason: reason.trim(),
+      },
+    });
+
+    // =====================================
+    // RECALCULATE CUSTOMER BALANCE
+    // =====================================
 
     await recalculateCustomerLedgerBalances(id);
 

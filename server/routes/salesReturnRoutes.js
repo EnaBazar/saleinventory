@@ -8,6 +8,10 @@ import Lot from "../models/Lot.js";
 import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
 import CustomerLedger from "../models/CustomerLedger.js";
+import Account from "../models/Account.js";
+import AccountLedger from "../models/AccountLedger.js";
+
+
 
 const router = express.Router();
 
@@ -215,14 +219,15 @@ router.post("/", async (req, res) => {
   const session = await mongoose.startSession();
 
   try {
-    const {
-      saleId,
-      items,
-      returnDate,
-      refundMethod = "CASH",
-      refundReference = "",
-      notes = "",
-    } = req.body;
+ const {
+  saleId,
+  items,
+  returnDate,
+  refundMethod = "CASH",
+  refundAccountId = "",
+  refundReference = "",
+  notes = "",
+} = req.body;
 
     if (!mongoose.isValidObjectId(saleId)) {
       return res.status(400).json({
@@ -592,7 +597,26 @@ router.post("/", async (req, res) => {
       const refundAmount = Number(
         (totalReturnAmount - amountAdjusted).toFixed(2)
       );
+let selectedRefundAccount = null;
 
+if (
+  refundAmount > 0 &&
+  ["CASH", "BANK", "BKASH"].includes(refundMethod)
+) {
+  if (!mongoose.Types.ObjectId.isValid(refundAccountId)) {
+    throw new Error("Please select a valid refund account");
+  }
+
+  selectedRefundAccount = await Account.findOne({
+    _id: refundAccountId,
+    accountType: refundMethod,
+    isActive: true,
+  }).session(session);
+
+  if (!selectedRefundAccount) {
+    throw new Error("Selected refund account is invalid or inactive");
+  }
+}
       // ========================================
       // 5. RESTORE ORIGINAL LOT AND PRODUCT STOCK
       // ========================================
@@ -683,6 +707,10 @@ router.post("/", async (req, res) => {
 
         refundMethod: refundAmount > 0 ? refundMethod : null,
         refundReference: refundAmount > 0 ? refundReference : "",
+refundAccountId: refundAmount > 0
+  ? selectedRefundAccount?._id || null
+  : null,
+
 
         notes,
 
@@ -696,6 +724,31 @@ router.post("/", async (req, res) => {
 
       await salesReturn.save({ session });
 
+
+      // ========================================
+// ACCOUNT LEDGER - SALES RETURN REFUND
+// ========================================
+if (refundAmount > 0 && selectedRefundAccount) {
+  await AccountLedger.create(
+    [
+      {
+        accountId: selectedRefundAccount._id,
+        transactionType: "WITHDRAWAL",
+        direction: "OUT",
+        amount: refundAmount,
+        reference: salesReturn.returnNumber,
+        transactionId: salesReturn._id.toString(),
+        description: `Sales Return Refund - ${salesReturn.returnNumber}`,
+        transactionDate: parsedReturnDate,
+        createdBy: {
+          adminId: req.admin?.adminId || null,
+          adminName: req.admin?.name || "",
+        },
+      },
+    ],
+    { session }
+  );
+}
       // ========================================
       // 7. CUSTOMER LEDGER - SALES RETURN CREDIT
       // ========================================

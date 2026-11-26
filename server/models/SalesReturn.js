@@ -229,9 +229,15 @@ const salesReturnSchema = new mongoose.Schema(
 
     refundMethod: {
       type: String,
-      enum: ["CASH", "BANK", "BKASH", "NAGAD", "ROCKET", "OTHER"],
+      enum: ["CASH", "BANK", "BKASH"],
       default: null,
     },
+refundAccountId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Account",
+  default: null,
+},
+
 
     refundReference: {
       type: String,

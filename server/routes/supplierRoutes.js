@@ -5,6 +5,8 @@ import Supplier from "../models/Supplier.js";
 import SupplierLedger from "../models/SupplierLedger.js";
 import ActivityLog from "../models/ActivityLog.js";
 import Lot from "../models/Lot.js";
+import Account from "../models/Account.js";
+import AccountLedger from "../models/AccountLedger.js";
 
 const router = express.Router();
 
@@ -474,8 +476,11 @@ router.get("/:id/statement", async (req, res) => {
 // POST /api/suppliers/:id/payments
 // ======================================
 
+
+
 router.post("/:id/payments", async (req, res) => {
   let createdPayment = null;
+  let createdAccountLedger = null;
 
   try {
     const { id } = req.params;
@@ -490,7 +495,10 @@ router.post("/:id/payments", async (req, res) => {
     const {
       amount,
       paymentMethod,
+      accountId,
       transactionId,
+      reference,
+      description,
       transactionDate,
       notes,
     } = req.body;
@@ -522,6 +530,49 @@ router.post("/:id/payments", async (req, res) => {
       });
     }
 
+    // Validate selected account
+    const accountRequiredMethods = ["CASH", "BANK", "BKASH"];
+
+    if (
+      accountRequiredMethods.includes(method) &&
+      !accountId
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select an account for this payment method",
+      });
+    }
+
+    let selectedAccount = null;
+
+    if (accountId) {
+      if (!mongoose.Types.ObjectId.isValid(accountId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid account ID",
+        });
+      }
+
+      selectedAccount = await Account.findOne({
+        _id: accountId,
+        isActive: true,
+      });
+
+      if (!selectedAccount) {
+        return res.status(404).json({
+          success: false,
+          message: "Selected account not found or inactive",
+        });
+      }
+
+      if (selectedAccount.accountType !== method) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected account does not match payment method",
+        });
+      }
+    }
+
     let paymentDate = new Date();
 
     if (transactionDate) {
@@ -535,42 +586,49 @@ router.post("/:id/payments", async (req, res) => {
       }
     }
 
-    // Calculate balance before payment
-   // Calculate balance before payment
-// Exclude voided Payment and Commission Invoice
-const previousLedger = await SupplierLedger.aggregate([
-  {
-    $match: {
-      supplierId: supplier._id,
-      $or: [
-        {
-          type: {
-            $nin: ["PAYMENT", "COMMISSION_INVOICE"],
-          },
+    // Calculate supplier balance before payment
+    const previousLedger = await SupplierLedger.aggregate([
+      {
+        $match: {
+          supplierId: supplier._id,
+          $or: [
+            {
+              type: {
+                $nin: ["PAYMENT", "COMMISSION_INVOICE"],
+              },
+            },
+            {
+              isVoided: { $ne: true },
+            },
+          ],
         },
-        {
-          isVoided: { $ne: true },
+      },
+      {
+        $group: {
+          _id: null,
+          totalDebit: { $sum: "$debit" },
+          totalCredit: { $sum: "$credit" },
         },
-      ],
-    },
-  },
-  {
-    $group: {
-      _id: null,
-      totalDebit: { $sum: "$debit" },
-      totalCredit: { $sum: "$credit" },
-    },
-  },
-]);
+      },
+    ]);
 
-const totalDebit = previousLedger[0]?.totalDebit || 0;
-const totalCredit = previousLedger[0]?.totalCredit || 0;
+    const totalDebit = previousLedger[0]?.totalDebit || 0;
+    const totalCredit = previousLedger[0]?.totalCredit || 0;
 
-const openingBalance = Number(supplier.openingBalance || 0);
+    const openingBalance = Number(supplier.openingBalance || 0);
 
-const balanceBefore = Number(
-  (openingBalance + totalDebit - totalCredit).toFixed(2)
-);
+    const balanceBefore = Number(
+      (openingBalance + totalDebit - totalCredit).toFixed(2)
+    );
+
+    const paymentReference =
+      reference || `SUPPLIER-PAYMENT-${Date.now()}`;
+
+    const paymentDescription =
+      description !== undefined
+        ? String(description)
+        : notes || "Supplier payment";
+
     // Create Supplier Payment
     createdPayment = await SupplierLedger.create({
       supplierId: supplier._id,
@@ -580,9 +638,10 @@ const balanceBefore = Number(
       credit: paymentAmount,
       balanceAfter: balanceBefore - paymentAmount,
       paymentMethod: method,
+      accountId: selectedAccount?._id || null,
       transactionId: transactionId || "",
-      reference: `SUPPLIER-PAYMENT-${Date.now()}`,
-      description: notes || "Supplier payment",
+      reference: paymentReference,
+      description: paymentDescription,
       createdBy: {
         adminId: req.admin?.adminId || null,
         name: req.admin?.name || "",
@@ -591,17 +650,36 @@ const balanceBefore = Number(
       transactionDate: paymentDate,
     });
 
-    // Recalculate all transaction balances
+    // Create Account Ledger Withdrawal
+    if (selectedAccount) {
+      createdAccountLedger = await AccountLedger.create({
+        accountId: selectedAccount._id,
+        supplierPaymentId: createdPayment._id,
+        transactionType: "WITHDRAWAL",
+        direction: "OUT",
+        amount: paymentAmount,
+        reference: paymentReference,
+        transactionId: transactionId || "",
+        description: paymentDescription,
+        transactionDate: paymentDate,
+        createdBy: {
+          adminId: req.admin?.adminId || null,
+          name: req.admin?.name || "",
+          username: req.admin?.username || "",
+        },
+      });
+    }
+
+    // Recalculate supplier balances
     await recalculateSupplierLedgerBalances(supplier._id);
 
-    // Get updated payment
     const updatedPayment = await SupplierLedger.findById(
       createdPayment._id
     );
 
     const balanceAfter = updatedPayment.balanceAfter;
 
-    // Save Supplier Payment Activity
+    // Activity Log
     try {
       await ActivityLog.create({
         adminId: req.admin?.adminId || null,
@@ -615,11 +693,14 @@ const balanceBefore = Number(
         metadata: {
           amount: paymentAmount,
           paymentMethod: method,
+          accountId: selectedAccount?._id || null,
+          accountName: selectedAccount?.accountName || "",
           transactionId: transactionId || "",
+          reference: paymentReference,
           transactionDate: paymentDate,
           balanceBefore,
           balanceAfter,
-          notes: notes || "",
+          notes: paymentDescription,
         },
       });
     } catch (activityError) {
@@ -637,23 +718,30 @@ const balanceBefore = Number(
       balanceAfter,
     });
   } catch (error) {
-    // Rollback payment if balance recalculation fails
+    // Rollback Account Ledger if created
+    if (createdAccountLedger?._id) {
+      await AccountLedger.findByIdAndDelete(
+        createdAccountLedger._id
+      ).catch(() => {});
+    }
+
+    // Rollback Supplier Ledger if created
     if (createdPayment?._id) {
       await SupplierLedger.findByIdAndDelete(
         createdPayment._id
       ).catch(() => {});
 
-      const supplierId = createdPayment.supplierId;
-
-      await recalculateSupplierLedgerBalances(supplierId).catch(
-        (rollbackError) => {
-          console.error(
-            "Supplier Ledger Rollback Error:",
-            rollbackError.message
-          );
-        }
-      );
+      await recalculateSupplierLedgerBalances(
+        createdPayment.supplierId
+      ).catch((rollbackError) => {
+        console.error(
+          "Supplier Ledger Rollback Error:",
+          rollbackError.message
+        );
+      });
     }
+
+    console.error("Supplier Payment Error:", error);
 
     res.status(500).json({
       success: false,
@@ -667,7 +755,18 @@ const balanceBefore = Number(
 // EDIT / CORRECT SUPPLIER PAYMENT
 // PUT /api/suppliers/:id/payments/:paymentId
 // ======================================
+
+
 router.put("/:id/payments/:paymentId", async (req, res) => {
+  let payment = null;
+  let accountLedgers = [];
+  let originalPayment = null;
+  let originalAccountLedgers = [];
+
+  let createdAccountLedgerId = null;
+  let oldSupplierId = null;
+  let targetSupplierId = null;
+
   try {
     const { id, paymentId } = req.params;
 
@@ -681,7 +780,7 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
       });
     }
 
-    const payment = await SupplierLedger.findById(paymentId);
+    payment = await SupplierLedger.findById(paymentId);
 
     if (!payment || payment.type !== "PAYMENT") {
       return res.status(404).json({
@@ -707,7 +806,10 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
     const {
       amount,
       paymentMethod,
+      accountId,
       transactionId,
+      reference,
+      description,
       transactionDate,
       notes,
       supplierId: newSupplierId,
@@ -721,9 +823,8 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
       });
     }
 
-    const oldSupplierId = payment.supplierId;
-
-    const targetSupplierId = newSupplierId || oldSupplierId;
+    oldSupplierId = payment.supplierId;
+    targetSupplierId = newSupplierId || oldSupplierId;
 
     if (!mongoose.Types.ObjectId.isValid(targetSupplierId)) {
       return res.status(400).json({
@@ -741,41 +842,88 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
       });
     }
 
-    const oldValues = {
-      supplierId: String(payment.supplierId),
-      amount: payment.amount,
-      paymentMethod: payment.paymentMethod,
-      transactionId: payment.transactionId,
-      transactionDate: payment.transactionDate,
-      description: payment.description,
-    };
+    // Validate amount
+    const newAmount =
+      amount !== undefined
+        ? Number(amount)
+        : Number(payment.amount);
 
-    let newAmount = Number(payment.amount);
+    if (!Number.isFinite(newAmount) || newAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid payment amount is required",
+      });
+    }
 
-    if (amount !== undefined) {
-      newAmount = Number(amount);
+    // Validate payment method
+    const newMethod =
+      paymentMethod !== undefined
+        ? String(paymentMethod).toUpperCase()
+        : payment.paymentMethod;
 
-      if (!Number.isFinite(newAmount) || newAmount <= 0) {
+    if (!PAYMENT_METHODS.includes(newMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment method",
+      });
+    }
+
+    const methodChanged = newMethod !== payment.paymentMethod;
+
+    let finalAccountId;
+
+    if (accountId !== undefined) {
+      finalAccountId = accountId || null;
+    } else if (methodChanged) {
+      finalAccountId = null;
+    } else {
+      finalAccountId = payment.accountId || null;
+    }
+
+    const accountRequiredMethods = ["CASH", "BANK", "BKASH"];
+
+    if (
+      accountRequiredMethods.includes(newMethod) &&
+      !finalAccountId
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select an account for this payment method",
+      });
+    }
+
+    // Validate selected account
+    let selectedAccount = null;
+
+    if (finalAccountId) {
+      if (!mongoose.Types.ObjectId.isValid(finalAccountId)) {
         return res.status(400).json({
           success: false,
-          message: "Valid payment amount is required",
+          message: "Invalid account ID",
+        });
+      }
+
+      selectedAccount = await Account.findOne({
+        _id: finalAccountId,
+        isActive: true,
+      });
+
+      if (!selectedAccount) {
+        return res.status(404).json({
+          success: false,
+          message: "Selected account not found or inactive",
+        });
+      }
+
+      if (selectedAccount.accountType !== newMethod) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected account does not match payment method",
         });
       }
     }
 
-    let newMethod = payment.paymentMethod;
-
-    if (paymentMethod !== undefined) {
-      newMethod = String(paymentMethod).toUpperCase();
-
-      if (!PAYMENT_METHODS.includes(newMethod)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid payment method",
-        });
-      }
-    }
-
+    // Validate transaction date
     let newDate = payment.transactionDate;
 
     if (transactionDate !== undefined) {
@@ -792,23 +940,57 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
     const newTransactionId =
       transactionId !== undefined
         ? String(transactionId)
-        : payment.transactionId;
+        : payment.transactionId || "";
 
-    const newNotes =
-      notes !== undefined
-        ? String(notes)
-        : payment.description;
+    const newReference =
+      reference !== undefined
+        ? String(reference)
+        : payment.reference || "";
 
+    const newDescription =
+      description !== undefined
+        ? String(description)
+        : notes !== undefined
+          ? String(notes)
+          : payment.description || "";
+
+    // Find ALL linked Account Ledger records
+    accountLedgers = await AccountLedger.find({
+      supplierPaymentId: payment._id,
+    }).sort({ createdAt: 1 });
+
+    // Keep original documents for rollback
+    originalPayment = payment.toObject();
+
+    originalAccountLedgers = accountLedgers.map((item) =>
+      item.toObject()
+    );
+
+    // Old values
+    const oldValues = {
+      supplierId: String(payment.supplierId),
+      amount: payment.amount,
+      paymentMethod: payment.paymentMethod,
+      accountId: payment.accountId || null,
+      transactionId: payment.transactionId || "",
+      reference: payment.reference || "",
+      transactionDate: payment.transactionDate,
+      description: payment.description || "",
+    };
+
+    // New values
     const newValues = {
       supplierId: String(targetSupplierId),
       amount: newAmount,
       paymentMethod: newMethod,
+      accountId: selectedAccount?._id || null,
       transactionId: newTransactionId,
+      reference: newReference,
       transactionDate: newDate,
-      description: newNotes,
+      description: newDescription,
     };
 
-    // Save old and new values in correction history
+    // Save correction history
     payment.correctionHistory.push({
       correctedAt: new Date(),
       correctedBy: {
@@ -821,22 +1003,92 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
       newValues,
     });
 
-    // Update payment
+    // Update Supplier Ledger
     payment.supplierId = targetSupplierId;
     payment.amount = newAmount;
     payment.debit = 0;
     payment.credit = newAmount;
     payment.paymentMethod = newMethod;
+    payment.accountId = selectedAccount?._id || null;
     payment.transactionId = newTransactionId;
+    payment.reference = newReference;
     payment.transactionDate = newDate;
-    payment.description = newNotes;
+    payment.description = newDescription;
 
     await payment.save();
 
-    // Recalculate old supplier balance
+    // =====================================
+    // FIX: Keep only ONE active Account Ledger
+    // =====================================
+
+    if (selectedAccount) {
+      // Prefer an existing active record
+      let mainLedger = accountLedgers.find(
+        (item) => !item.isVoided
+      );
+
+      // If no record exists, reuse an old voided record
+      if (!mainLedger && accountLedgers.length > 0) {
+        mainLedger = accountLedgers[0];
+      }
+
+      // If no linked record exists, create one
+      if (!mainLedger) {
+        mainLedger = new AccountLedger({
+          supplierPaymentId: payment._id,
+        });
+
+        createdAccountLedgerId = mainLedger._id;
+      }
+
+      // Update the main withdrawal
+      mainLedger.accountId = selectedAccount._id;
+      mainLedger.supplierPaymentId = payment._id;
+      mainLedger.transactionType = "WITHDRAWAL";
+      mainLedger.direction = "OUT";
+      mainLedger.amount = newAmount;
+      mainLedger.reference = newReference;
+      mainLedger.transactionId = newTransactionId;
+      mainLedger.description = newDescription;
+      mainLedger.transactionDate = newDate;
+
+      mainLedger.isVoided = false;
+      mainLedger.voidedAt = null;
+      mainLedger.voidReason = "";
+
+      await mainLedger.save();
+
+      // Void every extra linked withdrawal
+      for (const extraLedger of accountLedgers) {
+        if (
+          String(extraLedger._id) !==
+          String(mainLedger._id)
+        ) {
+          extraLedger.isVoided = true;
+          extraLedger.voidedAt = new Date();
+          extraLedger.voidReason =
+            "Duplicate supplier payment ledger entry";
+
+          await extraLedger.save();
+        }
+      }
+    } else {
+      // No account selected: void ALL linked withdrawals
+      for (const ledger of accountLedgers) {
+        if (!ledger.isVoided) {
+          ledger.isVoided = true;
+          ledger.voidedAt = new Date();
+          ledger.voidReason =
+            "Supplier payment account selection removed during correction";
+
+          await ledger.save();
+        }
+      }
+    }
+
+    // Recalculate supplier balances
     await recalculateSupplierLedgerBalances(oldSupplierId);
 
-    // Recalculate new supplier balance if supplier changed
     if (String(oldSupplierId) !== String(targetSupplierId)) {
       await recalculateSupplierLedgerBalances(targetSupplierId);
     }
@@ -865,27 +1117,81 @@ router.put("/:id/payments/:paymentId", async (req, res) => {
       );
     }
 
-    res.json({
+    const updatedPayment = await SupplierLedger.findById(
+      payment._id
+    );
+
+    return res.json({
       success: true,
       message: "Supplier payment corrected successfully",
-      payment,
+      payment: updatedPayment,
     });
 
   } catch (error) {
     console.error("Supplier Payment Correction Error:", error);
 
-    res.status(500).json({
+    // Rollback newly created Account Ledger
+    if (createdAccountLedgerId) {
+      await AccountLedger.findByIdAndDelete(
+        createdAccountLedgerId
+      ).catch(() => {});
+    }
+
+    // Restore original Account Ledger records
+    for (const originalLedger of originalAccountLedgers) {
+      await AccountLedger.replaceOne(
+        { _id: originalLedger._id },
+        originalLedger
+      ).catch((rollbackError) => {
+        console.error(
+          "Account Ledger Rollback Error:",
+          rollbackError.message
+        );
+      });
+    }
+
+    // Rollback Supplier Ledger
+    if (originalPayment?._id) {
+      await SupplierLedger.replaceOne(
+        { _id: originalPayment._id },
+        originalPayment
+      ).catch((rollbackError) => {
+        console.error(
+          "Supplier Payment Rollback Error:",
+          rollbackError.message
+        );
+      });
+
+      await recalculateSupplierLedgerBalances(
+        oldSupplierId
+      ).catch(() => {});
+
+      if (
+        targetSupplierId &&
+        String(oldSupplierId) !== String(targetSupplierId)
+      ) {
+        await recalculateSupplierLedgerBalances(
+          targetSupplierId
+        ).catch(() => {});
+      }
+    }
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        error.message || "Supplier payment correction failed",
     });
   }
 });
+
+
 
 
 // ======================================
 // VOID / CANCEL SUPPLIER PAYMENT
 // PATCH /api/suppliers/:id/payments/:paymentId/void
 // ======================================
+
 router.patch("/:id/payments/:paymentId/void", async (req, res) => {
   try {
     const { id, paymentId } = req.params;
@@ -944,11 +1250,13 @@ router.patch("/:id/payments/:paymentId/void", async (req, res) => {
       amount: payment.amount,
       credit: payment.credit,
       paymentMethod: payment.paymentMethod,
+      accountId: payment.accountId || null,
       transactionId: payment.transactionId,
       transactionDate: payment.transactionDate,
       description: payment.description,
     };
 
+    // Void Supplier Ledger Payment
     payment.isVoided = true;
     payment.voidedAt = new Date();
 
@@ -962,8 +1270,22 @@ router.patch("/:id/payments/:paymentId/void", async (req, res) => {
 
     await payment.save();
 
+    // Void linked Account Ledger Withdrawal
+    const accountLedger = await AccountLedger.findOne({
+      supplierPaymentId: payment._id,
+    });
+
+    if (accountLedger && !accountLedger.isVoided) {
+      accountLedger.isVoided = true;
+      accountLedger.voidedAt = new Date();
+      accountLedger.voidReason = String(reason).trim();
+
+      await accountLedger.save();
+    }
+
     await recalculateSupplierLedgerBalances(supplier._id);
 
+    // Activity Log
     try {
       await ActivityLog.create({
         adminId: req.admin?.adminId || null,
@@ -992,7 +1314,6 @@ router.patch("/:id/payments/:paymentId/void", async (req, res) => {
       message: "Supplier payment voided successfully",
       payment,
     });
-
   } catch (error) {
     console.error("Supplier Payment Void Error:", error);
 
@@ -1002,6 +1323,7 @@ router.patch("/:id/payments/:paymentId/void", async (req, res) => {
     });
   }
 });
+
 
 
 // ======================================

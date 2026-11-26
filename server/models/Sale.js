@@ -246,13 +246,16 @@ const saleSchema = new mongoose.Schema(
         "CASH",
         "BANK",
         "BKASH",
-        "NAGAD",
-        "ROCKET",
-        "OTHER",
         "DUE",
       ],
       default: "CASH",
     },
+
+accountId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Account",
+  default: null,
+},
 
     paymentReference: {
       type: String,

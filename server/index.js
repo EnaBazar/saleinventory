@@ -17,6 +17,10 @@ import salesReturnRoutes from "./routes/salesReturnRoutes.js";
 import commissionRoutes from "./routes/commissionRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import stockOutRoutes from "./routes/stockOutRoutes.js";
+import accountRoutes from "./routes/accountRoutes.js";
+import loanProviderRoutes from "./routes/loanProviderRoutes.js";
+import loanRoutes from "./routes/loanRoutes.js";
+import loanStatementRoutes from "./routes/loanStatementRoutes.js";
 
 
 // Load packages only after DNS configuration
@@ -41,9 +45,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-
 // Authentication Routes
 app.use("/api/auth", authRoutes);
+
 // Existing API Routes
 app.use("/api/customers", requireAdmin, customerRoutes);
 app.use("/api/suppliers", requireAdmin, supplierRoutes);
@@ -56,8 +60,11 @@ app.use("/api/sales-returns", requireAdmin, salesReturnRoutes);
 app.use("/api/commission", requireAdmin, commissionRoutes);
 app.use("/api/reports", requireAdmin, reportRoutes);
 app.use("/api/stock-outs", requireAdmin, stockOutRoutes);
-
-
+app.use("/api/loans/providers", requireAdmin, loanProviderRoutes);
+app.use("/api/loans", requireAdmin, loanRoutes);
+app.use("/api/loans", requireAdmin, loanStatementRoutes);
+// Accounting Routes
+app.use("/api/accounts", requireAdmin, accountRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

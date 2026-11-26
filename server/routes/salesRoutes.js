@@ -1,13 +1,14 @@
 
 import express from "express";
 import mongoose from "mongoose";
-
 import Sale from "../models/Sale.js";
 import Lot from "../models/Lot.js";
 import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
 import CustomerLedger from "../models/CustomerLedger.js";
 import SalesReturn from "../models/SalesReturn.js";
+import Account from "../models/Account.js";
+import AccountLedger from "../models/AccountLedger.js";
 
 
 const router = express.Router();
@@ -229,6 +230,7 @@ router.get("/lots/:productId", async (req, res) => {
 // CREATE SALES INVOICE
 // POST /api/sales
 // ========================================
+
 router.post("/", async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -241,9 +243,14 @@ router.post("/", async (req, res) => {
       discount = 0,
       paidAmount = 0,
       paymentMethod = "CASH",
+      accountId = "",
       paymentReference = "",
       notes = "",
     } = req.body;
+
+    // ========================================
+    // VALIDATE CUSTOMER
+    // ========================================
 
     if (!mongoose.isValidObjectId(customerId)) {
       return res.status(400).json({
@@ -270,6 +277,10 @@ router.post("/", async (req, res) => {
         message: "Customer not found or inactive",
       });
     }
+
+    // ========================================
+    // VALIDATE DATE AND AMOUNTS
+    // ========================================
 
     const parsedDate = invoiceDate
       ? new Date(invoiceDate)
@@ -304,9 +315,6 @@ router.post("/", async (req, res) => {
       "CASH",
       "BANK",
       "BKASH",
-      "NAGAD",
-      "ROCKET",
-      "OTHER",
       "DUE",
     ];
 
@@ -316,6 +324,9 @@ router.post("/", async (req, res) => {
         message: "Invalid payment method",
       });
     }
+
+    // Account variable declared only once
+    let selectedAccount = null;
 
     // ========================================
     // VALIDATE ITEMS AND CALCULATE TOTALS
@@ -419,18 +430,16 @@ router.post("/", async (req, res) => {
           ? Number((weightKg * purchasePrice).toFixed(2))
           : 0;
 
-      // Commission Lot profit will be calculated later
-      // through the separate Commission Invoice system.
       const lineProfit =
         lot.stockType === "OWN"
           ? Number((lineProductTotal - lineCost).toFixed(2))
           : 0;
 
-  preparedItems.push({
-      productId: product._id,
-productName: product.productName,
-categoryName: product.category || "",
-lotId: lot._id,
+      preparedItems.push({
+        productId: product._id,
+        productName: product.productName,
+        categoryName: product.category || "",
+        lotId: lot._id,
         lotCode: lot.lotCode,
 
         supplierId: lot.supplierId?._id || null,
@@ -489,6 +498,35 @@ lotId: lot._id,
     // ========================================
 
     session.startTransaction();
+
+    // ========================================
+    // VALIDATE SALES PAYMENT ACCOUNT
+    // ========================================
+
+    if (paid > 0 && ["CASH", "BANK", "BKASH"].includes(paymentMethod)) {
+      if (!mongoose.isValidObjectId(accountId)) {
+        throw new Error("Please select a valid payment account");
+      }
+
+      selectedAccount = await Account.findOne({
+        _id: accountId,
+        isActive: true,
+      }).session(session);
+
+      if (!selectedAccount) {
+        throw new Error("Selected account not found or inactive");
+      }
+
+      if (selectedAccount.accountType !== paymentMethod) {
+        throw new Error(
+          "Selected account does not match the payment method"
+        );
+      }
+    }
+
+    // ========================================
+    // CALCULATE CUSTOMER DUE
+    // ========================================
 
     const ledgerBefore = await CustomerLedger.find({
       customerId,
@@ -583,8 +621,6 @@ lotId: lot._id,
         );
       }
 
-      // Lot completion is determined by BAG count,
-      // not by remaining KG.
       if (Number(updatedLot.remainingBags) === 0) {
         await Lot.updateOne(
           {
@@ -603,51 +639,81 @@ lotId: lot._id,
     // CREATE SALES INVOICE
     // ========================================
 
-    const sale = new Sale({
-      customerId: customer._id,
-      customerName: customer.customerName,
-      companyName: customer.companyName || "",
-      customerMobile: customer.mobile || "",
-      customerAddress: customer.address || "",
+ 
+const sale = new Sale({
+  customerId: customer._id,
+  customerName: customer.customerName,
+  companyName: customer.companyName || "",
+  customerMobile: customer.mobile || "",
+  customerAddress: customer.address || "",
 
-      invoiceDate: parsedDate,
+  invoiceDate: parsedDate,
 
-      items: preparedItems,
+  items: preparedItems,
 
-      totalBags,
-      totalWeightKg,
+  totalBags,
+  totalWeightKg,
 
-      productTotal,
-      totalCommission,
-      totalLabour,
+  productTotal,
+  totalCommission,
+  totalLabour,
 
-      otherCost: extraCost,
-      discount: discountAmount,
+  otherCost: extraCost,
+  discount: discountAmount,
 
-      grandTotal,
-      previousDue,
-      totalPayable,
-      paidAmount: paid,
-      dueAmount,
+  grandTotal,
+  previousDue,
+  totalPayable,
+  paidAmount: paid,
+  dueAmount,
 
-      totalCost,
-      totalProfit,
+  totalCost,
+  totalProfit,
 
-      paymentMethod: paid > 0 ? paymentMethod : "DUE",
-      paymentReference,
+  paymentMethod: paid > 0 ? paymentMethod : "DUE",
+  accountId: selectedAccount?._id || null,
+  paymentReference,
 
-      status: "COMPLETED",
-      notes,
+  status: "COMPLETED",
+  notes,
 
-      createdBy: {
-        adminId: req.admin?.adminId || null,
-        adminName: req.admin?.name || "",
-      },
+  createdBy: {
+    adminId: req.admin?.adminId || null,
+    adminName: req.admin?.name || "",
+  },
 
-      completedAt: new Date(),
-    });
+  completedAt: new Date(),
+});
+
 
     await sale.save({ session });
+
+    // ========================================
+    // SALES PAYMENT - ACCOUNT LEDGER
+    // ========================================
+
+    if (paid > 0 && selectedAccount) {
+      await AccountLedger.create(
+        [
+          {
+            accountId: selectedAccount._id,
+            transactionType: "DEPOSIT",
+            direction: "IN",
+            amount: paid,
+            reference: sale.invoiceNumber,
+            transactionId: sale._id.toString(),
+            description: `Sales Payment - ${sale.invoiceNumber}`,
+            transactionDate: parsedDate,
+            createdBy: {
+              adminId: req.admin?.adminId || null,
+              name: req.admin?.name || "",
+              username: req.admin?.username || "",
+            },
+          },
+        ],
+        { session, ordered: true }
+      );
+    }
 
     // ========================================
     // CUSTOMER SALE LEDGER
@@ -672,7 +738,7 @@ lotId: lot._id,
           },
         },
       ],
-   { session, ordered: true }
+      { session, ordered: true }
     );
 
     // ========================================
@@ -701,14 +767,22 @@ lotId: lot._id,
             },
           },
         ],
-      { session, ordered: true }
+        { session, ordered: true }
       );
     }
+
+    // ========================================
+    // RECALCULATE CUSTOMER BALANCES
+    // ========================================
 
     await recalculateCustomerLedgerBalances(
       customer._id,
       session
     );
+
+    // ========================================
+    // COMMIT TRANSACTION
+    // ========================================
 
     await session.commitTransaction();
 
@@ -722,6 +796,7 @@ lotId: lot._id,
       message: "Sales Invoice created successfully",
       data: savedSale,
     });
+
   } catch (error) {
     if (session.inTransaction()) {
       await session.abortTransaction();
@@ -733,10 +808,12 @@ lotId: lot._id,
       success: false,
       message: error.message || "Failed to create sales invoice",
     });
+
   } finally {
     await session.endSession();
   }
 });
+
 
 // ========================================
 // GET ALL SALES INVOICES
@@ -1962,17 +2039,20 @@ router.put("/:id", async (req, res) => {
       });
     }
 
-    const {
-      customerId,
-      invoiceDate,
-      items,
-      otherCost = 0,
-      discount = 0,
-      paidAmount = 0,
-      paymentMethod = "CASH",
-      paymentReference = "",
-      notes = "",
-    } = req.body;
+ 
+const {
+  customerId,
+  invoiceDate,
+  items,
+  otherCost = 0,
+  discount = 0,
+  paidAmount = 0,
+  paymentMethod = "CASH",
+  accountId = "",
+  paymentReference = "",
+  notes = "",
+} = req.body;
+
 
     if (!mongoose.isValidObjectId(customerId)) {
       return res.status(400).json({
@@ -2367,6 +2447,49 @@ const dueAmount = Number(
   (totalPayable - paid).toFixed(2)
 );
 
+
+
+      // ========================================
+      // 7A. VALIDATE NEW PAYMENT ACCOUNT
+      // ========================================
+
+      let selectedAccount = null;
+
+      if (paid > 0 && ["CASH", "BANK", "BKASH"].includes(paymentMethod)) {
+        if (!mongoose.isValidObjectId(accountId)) {
+          throw new Error("Please select a valid payment account");
+        }
+
+        selectedAccount = await Account.findOne({
+          _id: accountId,
+          isActive: true,
+          accountType: paymentMethod,
+        }).session(session);
+
+        if (!selectedAccount) {
+          throw new Error("Selected payment account is not available");
+        }
+      }
+
+      // ========================================
+      // 7B. VOID OLD ACCOUNT LEDGER PAYMENT
+      // ========================================
+
+      const oldAccountEntries = await AccountLedger.find({
+        transactionId: sale._id.toString(),
+        transactionType: "DEPOSIT",
+        direction: "IN",
+        isVoided: { $ne: true },
+      }).session(session);
+
+      for (const entry of oldAccountEntries) {
+        entry.isVoided = true;
+        entry.voidedAt = new Date();
+        entry.voidReason = "Sales invoice edited";
+        await entry.save({ session });
+      }
+
+
       // ========================================
       // 8. VOID OLD LEDGER ENTRIES
       // ========================================
@@ -2413,10 +2536,41 @@ const dueAmount = Number(
       sale.totalProfit = totalProfit;
 
       sale.paymentMethod = paid === 0 ? "DUE" : paymentMethod;
+      sale.accountId = selectedAccount?._id || null;
       sale.paymentReference = paymentReference;
       sale.notes = notes;
 
       await sale.save({ session });
+
+
+
+      // ========================================
+      // 9A. CREATE NEW ACCOUNT LEDGER PAYMENT
+      // ========================================
+
+      if (paid > 0 && selectedAccount) {
+        await AccountLedger.create(
+          [
+            {
+              accountId: selectedAccount._id,
+              transactionType: "DEPOSIT",
+              direction: "IN",
+              amount: paid,
+              reference: sale.invoiceNumber,
+              transactionId: sale._id.toString(),
+              description: `Edited Sales Payment - ${sale.invoiceNumber}`,
+              transactionDate: parsedDate,
+              createdBy: {
+                adminId: req.admin?.adminId || null,
+                name: req.admin?.name || "",
+                username: req.admin?.username || "",
+              },
+            },
+          ],
+          { session, ordered: true }
+        );
+      }
+
 
       // ========================================
       // 10. CREATE NEW LEDGER ENTRIES
