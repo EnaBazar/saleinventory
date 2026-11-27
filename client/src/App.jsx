@@ -1,4 +1,4 @@
-
+import React from "react";
 import { Fragment, useEffect, useState } from "react";
 import {
  LayoutDashboard, Package, ShoppingCart, ShoppingBag, Users,
@@ -10,6 +10,7 @@ MapPin,
 Printer,
 Download,
 FileText,
+ChartNoAxesColumn,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -18,6 +19,10 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import "./App.css";
 import AdminLogin from "./components/AdminLogin";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
+
 
 
 const API = "http://localhost:5000/api";
@@ -104,6 +109,18 @@ const navigation = [
     { label: "Account Transactions", icon: Wallet },
     { label: "Transaction History", icon: ClipboardList },
   ],
+},
+
+{
+  label: "Expenses",
+  icon: Wallet,
+  children: [
+  { label: "New Expense Entry", icon: Plus },
+  { label: "Expense Categories", icon: Tags },
+  { label: "Expense History & Search", icon: ClipboardList },
+  { label: "Date-wise Expense Report", icon: CalendarDays },
+{ label: "Category-wise Expense Report", icon: ChartNoAxesColumn },
+],
 },
 
 {
@@ -321,6 +338,105 @@ const [accountForm, setAccountForm] = useState({
   openingBalanceDate: new Date().toISOString().slice(0, 10),
   notes: "",
 });
+
+// ======================================
+// EXPENSE CATEGORY STATES
+// ======================================
+
+const [expenseCategories, setExpenseCategories] = useState([]);
+const [expenseCategoryLoading, setExpenseCategoryLoading] = useState(false);
+const [expenseCategorySaving, setExpenseCategorySaving] = useState(false);
+
+const [expenseCategoryEditingId, setExpenseCategoryEditingId] = useState("");
+
+const [expenseCategoryForm, setExpenseCategoryForm] = useState({
+  name: "",
+  description: "",
+});
+// DATE-WISE EXPENSE REPORT STATES
+const [dateWiseExpenseReport, setDateWiseExpenseReport] = useState([]);
+const [dateWiseExpenseLoading, setDateWiseExpenseLoading] = useState(false);
+
+const [dateWiseExpenseFilters, setDateWiseExpenseFilters] = useState({
+  fromDate: "",
+  toDate: "",
+  categoryId: "",
+  accountId: "",
+});
+
+const [dateWiseExpenseSummary, setDateWiseExpenseSummary] = useState({
+  totalAmount: 0,
+  totalEntries: 0,
+  totalDays: 0,
+});
+
+const [dateWiseExpenseDetails, setDateWiseExpenseDetails] = useState([]);
+const [expandedExpenseDate, setExpandedExpenseDate] = useState("");
+
+
+// ========================================
+// EXPENSE EDIT & CORRECTION HISTORY STATES
+// ========================================
+
+const [expenseEditModalOpen, setExpenseEditModalOpen] = useState(false);
+const [expenseEditLoading, setExpenseEditLoading] = useState(false);
+const [expenseEditingItem, setExpenseEditingItem] = useState(null);
+
+const [expenseEditFormData, setExpenseEditFormData] = useState({
+  expenseDate: "",
+  categoryId: "",
+  accountId: "",
+  amount: "",
+  voucherNumber: "",
+  reference: "",
+  description: "",
+  reason: "",
+});
+
+const [expenseCorrectionModalOpen, setExpenseCorrectionModalOpen] = useState(false);
+const [expenseCorrectionLoading, setExpenseCorrectionLoading] = useState(false);
+const [expenseCorrectionData, setExpenseCorrectionData] = useState(null);
+
+// ======================================
+// EXPENSE HISTORY STATES
+// ======================================
+
+const [expenseHistory, setExpenseHistory] = useState([]);
+const [expenseHistoryLoading, setExpenseHistoryLoading] = useState(false);
+
+const [expenseHistoryFilters, setExpenseHistoryFilters] = useState({
+  fromDate: "",
+  toDate: "",
+  categoryId: "",
+  accountId: "",
+  search: "",
+});
+
+const [expenseHistorySummary, setExpenseHistorySummary] = useState({
+  totalAmount: 0,
+  totalEntries: 0,
+});
+
+const [expenseHistoryPagination, setExpenseHistoryPagination] = useState({
+  currentPage: 1,
+  totalPages: 1,
+  totalExpenses: 0,
+  limit: 50,
+});
+// NEW EXPENSE ENTRY STATES
+const [expenseSaving, setExpenseSaving] = useState(false);
+const [expenseForm, setExpenseForm] = useState({
+  expenseDate: new Date().toISOString().slice(0, 10),
+  categoryId: "",
+  accountId: "",
+  amount: "",
+  voucherNumber: "",
+  reference: "",
+  description: "",
+});
+
+
+
 // ACCOUNT TRANSACTION STATES
 const [transactionSaving, setTransactionSaving] = useState(false);
 
@@ -467,6 +583,16 @@ useEffect(() => {
   }
 }, [activePage]);
 
+// ======================================
+// AUTO LOAD EXPENSE HISTORY
+// ======================================
+
+useEffect(() => {
+  if (activePage === "Expense History & Search") {
+    loadExpenseHistory(1);
+  }
+}, [activePage]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 // ADMIN AUTHENTICATION
 const [adminUser, setAdminUser] = useState(null);
@@ -566,6 +692,28 @@ const [categoryForm, setCategoryForm] = useState({
   productName: "",
   categoryName: "",
 });
+
+// CATEGORY-WISE EXPENSE REPORT STATES
+const [categoryWiseExpenseReport, setCategoryWiseExpenseReport] = useState([]);
+const [categoryWiseExpenseLoading, setCategoryWiseExpenseLoading] = useState(false);
+
+const [categoryWiseExpenseFilters, setCategoryWiseExpenseFilters] = useState({
+  fromDate: "",
+  toDate: "",
+  accountId: "",
+});
+
+const [categoryWiseExpenseSummary, setCategoryWiseExpenseSummary] = useState({
+  totalAmount: 0,
+  totalEntries: 0,
+  totalCategories: 0,
+});
+
+const [categoryWiseExpenseDetails, setCategoryWiseExpenseDetails] = useState([]);
+const [expandedExpenseCategory, setExpandedExpenseCategory] = useState("");
+
+
+
 
 const [selectedActivity, setSelectedActivity] = useState(null);
 // Activity Log States
@@ -1054,6 +1202,8 @@ const [cancelReason, setCancelReason] = useState("");
 const [cancellingSalesInvoice, setCancellingSalesInvoice] = useState(false);
 const [editingOriginalItems, setEditingOriginalItems] = useState([]);
 
+
+
 async function apiRequest(url, options = {}) {
   const response = await fetch(`${API}${url}`, {
     ...options,
@@ -1083,6 +1233,305 @@ async function apiRequest(url, options = {}) {
   }
 
   return data;
+}
+
+
+// ======================================
+// EXPENSE CATEGORY API
+// ======================================
+
+async function loadExpenseCategories() {
+  try {
+    setExpenseCategoryLoading(true);
+
+    const result = await apiRequest("/expense-categories");
+
+    setExpenseCategories(result.categories || []);
+    
+  } catch (error) {
+    toast.error(error.message || "Expense Categories load failed");
+  } finally {
+    setExpenseCategoryLoading(false);
+  }
+}
+
+
+// ======================================
+// LOAD EXPENSE HISTORY
+// ======================================
+
+
+async function loadExpenseHistory(page = 1, filters = expenseHistoryFilters) {
+  try {
+    setExpenseHistoryLoading(true);
+
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== "" && value !== null && value !== undefined) {
+        params.append(key, value);
+      }
+    });
+
+    params.append("page", String(page));
+    params.append("limit", "50");
+
+    const result = await apiRequest(
+      `/expenses?${params.toString()}`
+    );
+
+    setExpenseHistory(result.expenses || []);
+
+    setExpenseHistorySummary(
+      result.summary || {
+        totalAmount: 0,
+        totalEntries: 0,
+      }
+    );
+
+    setExpenseHistoryPagination(
+      result.pagination || {
+        currentPage: 1,
+        totalPages: 1,
+        totalExpenses: 0,
+        limit: 50,
+      }
+    );
+  } catch (error) {
+    toast.error(error.message || "Expense History load failed");
+  } finally {
+    setExpenseHistoryLoading(false);
+  }
+}
+
+
+async function loadDateWiseExpenseReport(filters = dateWiseExpenseFilters) {
+  try {
+    setDateWiseExpenseLoading(true);
+
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== "" && value !== null && value !== undefined) {
+        params.append(key, value);
+      }
+    });
+
+    const result = await apiRequest(
+      `/expenses/date-wise-report?${params.toString()}`
+    );
+
+    setDateWiseExpenseReport(result.dailyReport || []);
+    setDateWiseExpenseDetails(result.expenses || []);
+
+    setDateWiseExpenseSummary(
+      result.summary || {
+        totalAmount: 0,
+        totalEntries: 0,
+        totalDays: 0,
+      }
+    );
+  } catch (error) {
+    toast.error(error.message || "Date-wise Expense Report load failed");
+  } finally {
+    setDateWiseExpenseLoading(false);
+  }
+}
+
+
+async function loadCategoryWiseExpenseReport(
+  filters = categoryWiseExpenseFilters
+) {
+  try {
+    setCategoryWiseExpenseLoading(true);
+
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== "" && value !== null && value !== undefined) {
+        params.append(key, value);
+      }
+    });
+
+    const result = await apiRequest(
+      `/expenses/category-wise-report?${params.toString()}`
+    );
+
+    setCategoryWiseExpenseReport(result.categoryReport || []);
+    setCategoryWiseExpenseDetails(result.expenses || []);
+
+    setCategoryWiseExpenseSummary(
+      result.summary || {
+        totalAmount: 0,
+        totalEntries: 0,
+        totalCategories: 0,
+      }
+    );
+  } catch (error) {
+    toast.error(
+      error.message || "Category-wise Expense Report load failed"
+    );
+  } finally {
+    setCategoryWiseExpenseLoading(false);
+  }
+}
+
+// ADD / UPDATE EXPENSE CATEGORY
+async function saveExpenseCategory() {
+  if (!expenseCategoryForm.name.trim()) {
+    toast.error("Category Name দিতে হবে");
+    return;
+  }
+
+  try {
+    setExpenseCategorySaving(true);
+
+    const payload = {
+      name: expenseCategoryForm.name.trim(),
+      description: expenseCategoryForm.description.trim(),
+    };
+
+    let result;
+
+    if (expenseCategoryEditingId) {
+      result = await apiRequest(
+        `/expense-categories/${expenseCategoryEditingId}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
+    } else {
+      result = await apiRequest("/expense-categories", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
+
+    toast.success(result.message || "Category saved successfully");
+
+    setExpenseCategoryForm({
+      name: "",
+      description: "",
+    });
+
+    setExpenseCategoryEditingId("");
+
+    await loadExpenseCategories();
+  } catch (error) {
+    toast.error(error.message || "Category save failed");
+  } finally {
+    setExpenseCategorySaving(false);
+  }
+}
+
+// EDIT EXPENSE CATEGORY
+function editExpenseCategory(category) {
+  setExpenseCategoryEditingId(category._id);
+
+  setExpenseCategoryForm({
+    name: category.name || "",
+    description: category.description || "",
+  });
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+
+// ACTIVE / INACTIVE
+async function toggleExpenseCategoryStatus(category) {
+  try {
+    const nextStatus = !category.isActive;
+
+    const result = await apiRequest(
+      `/expense-categories/${category._id}/status`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          isActive: nextStatus,
+        }),
+      }
+    );
+
+    toast.success(result.message || "Category status updated");
+
+    await loadExpenseCategories();
+  } catch (error) {
+    toast.error(error.message || "Status update failed");
+  }
+}
+
+// SAVE NEW EXPENSE
+async function saveExpense() {
+  if (!expenseForm.categoryId) {
+    toast.error("Expense Category নির্বাচন করুন");
+    return;
+  }
+
+  if (!expenseForm.accountId) {
+    toast.error("Payment Account নির্বাচন করুন");
+    return;
+  }
+
+  const amount = Number(expenseForm.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast.error("সঠিক Expense Amount লিখুন");
+    return;
+  }
+
+  const selectedCategory = expenseCategories.find(
+    (item) => item._id === expenseForm.categoryId
+  );
+  const selectedAccount = accounts.find(
+    (item) => item._id === expenseForm.accountId
+  );
+
+  if (!selectedCategory || !selectedAccount) {
+    toast.error("Category অথবা Account পাওয়া যায়নি। Refresh করুন।");
+    return;
+  }
+
+  const payload = {
+    expenseDate: expenseForm.expenseDate,
+    categoryId: selectedCategory._id,
+    categoryName: selectedCategory.name,
+    accountId: selectedAccount._id,
+    accountName: selectedAccount.accountName,
+    accountType: selectedAccount.accountType,
+    amount,
+    voucherNumber: expenseForm.voucherNumber.trim(),
+    reference: expenseForm.reference.trim(),
+    description: expenseForm.description.trim(),
+  };
+
+  try {
+    setExpenseSaving(true);
+
+    const result = await apiRequest("/expenses", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    toast.success(result.message || "Expense সফলভাবে Save হয়েছে");
+
+    setExpenseForm({
+      expenseDate: new Date().toISOString().slice(0, 10),
+      categoryId: "",
+      accountId: "",
+      amount: "",
+      voucherNumber: "",
+      reference: "",
+      description: "",
+    });
+
+    await loadAccounts();
+  } catch (error) {
+    toast.error(error.message || "Expense Save করা যায়নি");
+  } finally {
+    setExpenseSaving(false);
+  }
 }
 
 // ======================================
@@ -1396,6 +1845,24 @@ useEffect(() => {
 
   loadLoanReportData();
 }, [adminUser, activePage]);
+
+useEffect(() => {
+  if (
+    activePage === "Expense Categories" ||
+    activePage === "New Expense Entry"
+  ) {
+    loadExpenseCategories();
+  }
+
+  if (activePage === "New Expense Entry") {
+    loadAccounts();
+  }
+}, [activePage]);
+
+// AUTO LOAD EXPENSE CATEGORIES
+useEffect(() => {
+  loadExpenseCategories();
+}, []);
 // ======================================
 // SAVE LOAN PROVIDER
 // ======================================
@@ -2058,6 +2525,18 @@ useEffect(() => {
 
   if (activePage === "Transaction History") {
     loadAccountTransactions(1);
+  }
+}, [activePage]);
+
+useEffect(() => {
+  if (activePage === "Date-wise Expense Report") {
+    loadDateWiseExpenseReport();
+  }
+}, [activePage]);
+
+useEffect(() => {
+  if (activePage === "Category-wise Expense Report") {
+    loadCategoryWiseExpenseReport();
   }
 }, [activePage]);
 
@@ -24974,6 +25453,3473 @@ async function toggleLoanProviderStatus(provider) {
 }
 
 
+
+
+
+function renderNewExpenseEntry() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "11px 13px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 8,
+    outline: "none",
+    fontSize: 13,
+    boxSizing: "border-box",
+    background: "#fff",
+    color: "#1e293b",
+    transition: "border-color 0.2s",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#334155",
+    marginBottom: 7,
+  };
+
+  const activeCategories = expenseCategories.filter(
+    (item) => item.isActive !== false
+  );
+
+  const activeAccounts = accounts.filter(
+    (item) => item.isActive !== false
+  );
+
+  const selectedAccount = activeAccounts.find(
+    (item) => item._id === expenseForm.accountId
+  );
+
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const buttonStyle = {
+    padding: "10px 19px",
+    borderRadius: 7,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    border: "none",
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 18, color: "#1e293b" }}>
+
+      {/* HEADER */}
+      <div
+        style={{
+          background: "#1e293b",
+          borderRadius: 10,
+          padding: "20px 22px",
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700 }}>
+            New Expense Entry
+          </h2>
+
+          <p style={{ color: "#cbd5e1", margin: "6px 0 0", fontSize: 12 }}>
+            Record business expenses and update account ledger
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            loadExpenseCategories();
+            loadAccounts();
+          }}
+          disabled={expenseSaving || expenseCategoryLoading || accountLoading}
+          style={{
+            ...buttonStyle,
+            background: "#0f766e",
+            color: "#fff",
+            opacity:
+              expenseSaving || expenseCategoryLoading || accountLoading
+                ? 0.6
+                : 1,
+          }}
+        >
+          {expenseCategoryLoading || accountLoading
+            ? "Loading..."
+            : "↻ Refresh Data"}
+        </button>
+      </div>
+
+      {/* EXPENSE FORM */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 22,
+        }}
+      >
+        <div
+          style={{
+            borderBottom: "1px solid #e2e8f0",
+            paddingBottom: 14,
+            marginBottom: 20,
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+            Expense Information
+          </h3>
+
+          <p style={{ color: "#64748b", fontSize: 12, margin: "6px 0 0" }}>
+            * চিহ্নিত ঘরগুলো পূরণ করা বাধ্যতামূলক
+          </p>
+        </div>
+
+        {(expenseCategoryLoading || accountLoading) && (
+          <div
+            style={{
+              padding: 12,
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              borderRadius: 7,
+              fontSize: 12,
+              marginBottom: 16,
+            }}
+          >
+            Category এবং Account তথ্য লোড হচ্ছে...
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 17,
+          }}
+        >
+          {/* DATE */}
+          <div>
+            <label style={labelStyle}>Expense Date *</label>
+
+            <input
+              type="date"
+              style={fieldStyle}
+              value={expenseForm.expenseDate}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  expenseDate: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {/* CATEGORY */}
+          <div>
+            <label style={labelStyle}>Expense Category *</label>
+
+            <select
+              style={fieldStyle}
+              value={expenseForm.categoryId}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  categoryId: e.target.value,
+                }))
+              }
+              disabled={expenseCategoryLoading}
+            >
+              <option value="">-- Select Expense Category --</option>
+
+              {activeCategories.map((category) => (
+                <option key={category._id} value={category._id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+
+            {!expenseCategoryLoading && activeCategories.length === 0 && (
+              <p style={{ color: "#dc2626", fontSize: 11, margin: "6px 0 0" }}>
+                আগে Expense Categories থেকে একটি Active Category তৈরি করুন।
+              </p>
+            )}
+          </div>
+
+          {/* ACCOUNT */}
+          <div>
+            <label style={labelStyle}>Payment Account *</label>
+
+            <select
+              style={fieldStyle}
+              value={expenseForm.accountId}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  accountId: e.target.value,
+                }))
+              }
+              disabled={accountLoading}
+            >
+              <option value="">-- Select Cash / Bank / bKash --</option>
+
+              {activeAccounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName} ({account.accountType})
+                </option>
+              ))}
+            </select>
+
+            {!accountLoading && activeAccounts.length === 0 && (
+              <p style={{ color: "#dc2626", fontSize: 11, margin: "6px 0 0" }}>
+                আগে Accounts থেকে Cash, Bank অথবা bKash Account তৈরি করুন।
+              </p>
+            )}
+          </div>
+
+          {/* AMOUNT */}
+          <div>
+            <label style={labelStyle}>Expense Amount (৳) *</label>
+
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              style={fieldStyle}
+              placeholder="Enter amount"
+              value={expenseForm.amount}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  amount: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {/* VOUCHER */}
+          <div>
+            <label style={labelStyle}>Voucher Number</label>
+
+            <input
+              type="text"
+              style={fieldStyle}
+              placeholder="Optional voucher number"
+              value={expenseForm.voucherNumber}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  voucherNumber: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {/* REFERENCE */}
+          <div>
+            <label style={labelStyle}>Reference</label>
+
+            <input
+              type="text"
+              style={fieldStyle}
+              placeholder="Cheque / transaction / other reference"
+              value={expenseForm.reference}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  reference: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {/* DESCRIPTION */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Description / Note</label>
+
+            <textarea
+              rows={3}
+              style={{
+                ...fieldStyle,
+                resize: "vertical",
+                minHeight: 85,
+              }}
+              placeholder="Write expense details..."
+              value={expenseForm.description}
+              onChange={(e) =>
+                setExpenseForm((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+            />
+          </div>
+        </div>
+
+        {/* SELECTED ACCOUNT DETAILS */}
+        {selectedAccount && (
+          <div
+            style={{
+              marginTop: 20,
+              padding: 17,
+              borderRadius: 9,
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 15,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  marginBottom: 6,
+                }}
+              >
+                Selected Account
+              </div>
+
+              <strong style={{ fontSize: 14, color: "#1e293b" }}>
+                {selectedAccount.accountName}
+              </strong>
+
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                {selectedAccount.accountType}
+              </div>
+            </div>
+
+            <div>
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  marginBottom: 6,
+                }}
+              >
+                Current Balance
+              </div>
+
+              <strong style={{ fontSize: 17, color: "#0f766e" }}>
+                ৳ {formatMoney(selectedAccount.currentBalance)}
+              </strong>
+            </div>
+          </div>
+        )}
+
+        {/* ACTION BUTTONS */}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 22,
+            paddingTop: 18,
+            borderTop: "1px solid #e2e8f0",
+          }}
+        >
+          <button
+            type="button"
+            onClick={saveExpense}
+            disabled={
+              expenseSaving ||
+              expenseCategoryLoading ||
+              accountLoading ||
+              activeCategories.length === 0 ||
+              activeAccounts.length === 0
+            }
+            style={{
+              ...buttonStyle,
+              background: "#0f766e",
+              color: "#fff",
+              opacity: expenseSaving ? 0.6 : 1,
+            }}
+          >
+            {expenseSaving ? "Saving Expense..." : "✓ Save Expense"}
+          </button>
+
+          <button
+            type="button"
+            disabled={expenseSaving}
+            onClick={() =>
+              setExpenseForm({
+                expenseDate: new Date().toISOString().slice(0, 10),
+                categoryId: "",
+                accountId: "",
+                amount: "",
+                voucherNumber: "",
+                reference: "",
+                description: "",
+              })
+            }
+            style={{
+              ...buttonStyle,
+              background: "#fff",
+              color: "#334155",
+              border: "1px solid #cbd5e1",
+            }}
+          >
+            Reset Form
+          </button>
+        </div>
+      </div>
+
+      {/* IMPORTANT NOTICE */}
+      <div
+        style={{
+          padding: 17,
+          borderRadius: 9,
+          border: "1px solid #fde68a",
+          borderLeft: "4px solid #f59e0b",
+          background: "#fffbeb",
+        }}
+      >
+        <strong style={{ fontSize: 13, color: "#92400e" }}>
+          Important Notice
+        </strong>
+
+        <p
+          style={{
+            margin: "7px 0 0",
+            color: "#92400e",
+            fontSize: 12,
+            lineHeight: 1.7,
+          }}
+        >
+          Expense Save হলে নির্বাচিত Cash / Bank / bKash Account থেকে টাকা OUT
+          হবে এবং Account Ledger-এ EXPENSE হিসেবে রেকর্ড হবে।
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+
+function renderExpenseCategories() {
+  const activeCount = expenseCategories.filter(
+    (item) => item.isActive !== false
+  ).length;
+
+  const inactiveCount = expenseCategories.length - activeCount;
+
+  const inputStyle = {
+    width: "100%",
+    padding: "11px 13px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 8,
+    outline: "none",
+    fontSize: 13,
+    boxSizing: "border-box",
+    background: "#fff",
+    color: "#1e293b",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#334155",
+    marginBottom: 7,
+  };
+
+  const cellStyle = {
+    padding: "13px 14px",
+    fontSize: 12,
+    color: "#475569",
+    borderBottom: "1px solid #e2e8f0",
+    whiteSpace: "nowrap",
+  };
+
+  const summaryCardStyle = {
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    padding: 18,
+    minWidth: 0,
+  };
+
+  const actionButtonStyle = {
+    padding: "7px 12px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 6,
+    background: "#fff",
+    color: "#334155",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+  };
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 18,
+        color: "#1e293b",
+      }}
+    >
+      {/* HEADER */}
+      <div
+        style={{
+          background: "#1e293b",
+          borderRadius: 10,
+          padding: "20px 22px",
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700 }}>
+            Expense Category Management
+          </h2>
+
+          <p style={{ color: "#cbd5e1", margin: "6px 0 0", fontSize: 12 }}>
+            Manage your business expense categories
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadExpenseCategories}
+          disabled={expenseCategoryLoading}
+          style={{
+            padding: "9px 16px",
+            border: "none",
+            borderRadius: 7,
+            background: "#0f766e",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+            opacity: expenseCategoryLoading ? 0.6 : 1,
+          }}
+        >
+          {expenseCategoryLoading ? "Loading..." : "↻ Refresh"}
+        </button>
+      </div>
+
+      {/* SUMMARY */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 14,
+        }}
+      >
+        <div style={summaryCardStyle}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+            Total Categories
+          </div>
+          <div style={{ fontSize: 25, fontWeight: 800, marginTop: 9 }}>
+            {expenseCategories.length}
+          </div>
+        </div>
+
+        <div style={summaryCardStyle}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+            Active Categories
+          </div>
+          <div
+            style={{
+              fontSize: 25,
+              fontWeight: 800,
+              marginTop: 9,
+              color: "#15803d",
+            }}
+          >
+            {activeCount}
+          </div>
+        </div>
+
+        <div style={summaryCardStyle}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+            Inactive Categories
+          </div>
+          <div
+            style={{
+              fontSize: 25,
+              fontWeight: 800,
+              marginTop: 9,
+              color: "#dc2626",
+            }}
+          >
+            {inactiveCount}
+          </div>
+        </div>
+      </div>
+
+      {/* ADD / EDIT FORM */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 22,
+        }}
+      >
+        <div
+          style={{
+            borderBottom: "1px solid #e2e8f0",
+            paddingBottom: 14,
+            marginBottom: 20,
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+            {expenseCategoryEditingId
+              ? "Edit Expense Category"
+              : "Add New Expense Category"}
+          </h3>
+
+          <p style={{ margin: "5px 0 0", fontSize: 12, color: "#64748b" }}>
+            Enter category information below
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Category Name *</label>
+
+            <input
+              style={inputStyle}
+              type="text"
+              placeholder="Example: Office Rent"
+              value={expenseCategoryForm.name}
+              onChange={(e) =>
+                setExpenseCategoryForm((prev) => ({
+                  ...prev,
+                  name: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Description</label>
+
+            <input
+              style={inputStyle}
+              type="text"
+              placeholder="Optional description"
+              value={expenseCategoryForm.description}
+              onChange={(e) =>
+                setExpenseCategoryForm((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 20,
+          }}
+        >
+          <button
+            type="button"
+            onClick={saveExpenseCategory}
+            disabled={expenseCategorySaving}
+            style={{
+              padding: "10px 19px",
+              background: "#0f766e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 7,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              opacity: expenseCategorySaving ? 0.6 : 1,
+            }}
+          >
+            {expenseCategorySaving
+              ? "Saving..."
+              : expenseCategoryEditingId
+              ? "Update Category"
+              : "+ Add Category"}
+          </button>
+
+          {expenseCategoryEditingId && (
+            <button
+              type="button"
+              onClick={() => {
+                setExpenseCategoryEditingId("");
+                setExpenseCategoryForm({
+                  name: "",
+                  description: "",
+                });
+              }}
+              style={actionButtonStyle}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* CATEGORY LIST */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 22,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
+            borderBottom: "1px solid #e2e8f0",
+            paddingBottom: 14,
+          }}
+        >
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+              Expense Category List
+            </h3>
+
+            <p style={{ margin: "5px 0 0", color: "#64748b", fontSize: 12 }}>
+              All expense categories ({expenseCategories.length})
+            </p>
+          </div>
+        </div>
+
+        {expenseCategoryLoading ? (
+          <div
+            style={{
+              padding: 35,
+              textAlign: "center",
+              color: "#64748b",
+              fontSize: 13,
+            }}
+          >
+            Loading categories...
+          </div>
+        ) : expenseCategories.length === 0 ? (
+          <div
+            style={{
+              padding: 35,
+              textAlign: "center",
+              color: "#94a3b8",
+              fontSize: 13,
+            }}
+          >
+            No Expense Categories found. Add your first category.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto", marginTop: 16 }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: 600,
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f1f5f9" }}>
+                  {[
+                    "#",
+                    "Category Name",
+                    "Description",
+                    "Status",
+                    "Actions",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      style={{
+                        padding: "12px 14px",
+                        textAlign: "left",
+                        fontSize: 11,
+                        fontWeight: 800,
+                        color: "#334155",
+                        borderBottom: "1px solid #e2e8f0",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {expenseCategories.map((category, index) => (
+                  <tr
+                    key={category._id}
+                    style={{ background: index % 2 ? "#fafafa" : "#fff" }}
+                  >
+                    <td style={cellStyle}>{index + 1}</td>
+
+                    <td
+                      style={{
+                        ...cellStyle,
+                        fontWeight: 700,
+                        color: "#1e293b",
+                      }}
+                    >
+                      {category.name}
+                    </td>
+
+                    <td style={cellStyle}>
+                      {category.description || "—"}
+                    </td>
+
+                    <td style={cellStyle}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "5px 10px",
+                          borderRadius: 20,
+                          fontSize: 10,
+                          fontWeight: 800,
+                          color:
+                            category.isActive !== false
+                              ? "#15803d"
+                              : "#b91c1c",
+                          background:
+                            category.isActive !== false
+                              ? "#dcfce7"
+                              : "#fee2e2",
+                        }}
+                      >
+                        {category.isActive !== false ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+
+                    <td style={cellStyle}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 7,
+                          alignItems: "center",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          style={{
+                            ...actionButtonStyle,
+                            color: "#0f766e",
+                          }}
+                          onClick={() => editExpenseCategory(category)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          style={{
+                            ...actionButtonStyle,
+                            color:
+                              category.isActive !== false
+                                ? "#dc2626"
+                                : "#15803d",
+                          }}
+                          onClick={() =>
+                            toggleExpenseCategoryStatus(category)
+                          }
+                        >
+                          {category.isActive !== false
+                            ? "Deactivate"
+                            : "Activate"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
+// ========================================
+// EXPENSE EDIT & CORRECTION HISTORY FUNCTIONS
+// ========================================
+
+// Date কে input type="date" এর উপযোগী করা
+const toExpenseDateInput = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+// Edit Modal খোলা এবং আগের তথ্য বসানো
+const openExpenseEditModal = (expense) => {
+  setExpenseEditingItem(expense);
+
+  setExpenseEditFormData({
+    expenseDate: toExpenseDateInput(expense.expenseDate),
+    categoryId: String(expense.categoryId?._id || expense.categoryId || ""),
+    accountId: String(expense.accountId?._id || expense.accountId || ""),
+    amount: String(expense.amount ?? ""),
+    voucherNumber: expense.voucherNumber || "",
+    reference: expense.reference || "",
+    description: expense.description || "",
+    reason: "",
+  });
+
+  setExpenseEditModalOpen(true);
+};
+
+// Edit Form এর Input পরিবর্তন
+const handleExpenseEditChange = (field, value) => {
+  setExpenseEditFormData((prev) => ({
+    ...prev,
+    [field]: value,
+  }));
+};
+
+// Expense Update API
+const saveExpenseEdit = async () => {
+  if (!expenseEditingItem?._id) {
+    toast.error("Expense নির্বাচন করা হয়নি");
+    return;
+  }
+
+  const form = expenseEditFormData;
+
+  if (
+    !form.expenseDate ||
+    !form.categoryId ||
+    !form.accountId ||
+    !form.amount
+  ) {
+    toast.error("প্রয়োজনীয় সব তথ্য পূরণ করুন");
+    return;
+  }
+
+  if (Number(form.amount) <= 0) {
+    toast.error("সঠিক Amount লিখুন");
+    return;
+  }
+
+  if (!form.reason.trim()) {
+    toast.error("Correction Reason লিখুন");
+    return;
+  }
+
+  try {
+    setExpenseEditLoading(true);
+
+    const result = await apiRequest(
+      `/expenses/${expenseEditingItem._id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          expenseDate: form.expenseDate,
+          categoryId: form.categoryId,
+          accountId: form.accountId,
+          amount: Number(form.amount),
+          voucherNumber: form.voucherNumber,
+          reference: form.reference,
+          description: form.description,
+          reason: form.reason,
+        }),
+      }
+    );
+
+    toast.success(result.message || "Expense updated successfully");
+
+    setExpenseEditModalOpen(false);
+    setExpenseEditingItem(null);
+
+await loadExpenseHistory(
+  expenseHistoryPagination.currentPage || 1,
+  expenseHistoryFilters
+);
+  } catch (error) {
+    console.error("EXPENSE EDIT ERROR:", error);
+    toast.error(error.message || "Expense Update করা যায়নি");
+  } finally {
+    setExpenseEditLoading(false);
+  }
+};
+
+// Correction History Load
+const loadExpenseCorrectionHistory = async (expenseId) => {
+  if (!expenseId) return;
+
+  try {
+    setExpenseCorrectionLoading(true);
+    setExpenseCorrectionModalOpen(true);
+    setExpenseCorrectionData(null);
+
+    const result = await apiRequest(
+      `/expenses/${expenseId}/correction-history`
+    );
+
+    setExpenseCorrectionData(result);
+  } catch (error) {
+    console.error("CORRECTION HISTORY ERROR:", error);
+    toast.error(error.message || "Correction History পাওয়া যায়নি");
+    setExpenseCorrectionModalOpen(false);
+  } finally {
+    setExpenseCorrectionLoading(false);
+  }
+};
+
+
+
+
+function renderExpenseHistory() {
+  const activeAccounts = accounts.filter(
+    (account) => account.isActive !== false
+  );
+
+  const activeCategories = expenseCategories.filter(
+    (category) => category.isActive !== false
+  );
+
+  const formatMoney = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#475569",
+    marginBottom: 6,
+  };
+
+  const inputStyleExpense = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 7,
+    fontSize: 13,
+    background: "#fff",
+    boxSizing: "border-box",
+    outline: "none",
+  };
+
+  const updateFilter = (key, value) => {
+    setExpenseHistoryFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const clearFilters = () => {
+    const emptyFilters = {
+      fromDate: "",
+      toDate: "",
+      categoryId: "",
+      accountId: "",
+      search: "",
+    };
+
+    setExpenseHistoryFilters(emptyFilters);
+
+    const params = new URLSearchParams();
+    params.append("page", "1");
+    params.append("limit", "50");
+
+    loadExpenseHistoryWithParams(params);
+  };
+
+  const currentPage = expenseHistoryPagination.currentPage || 1;
+  const totalPages = expenseHistoryPagination.totalPages || 1;
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+
+      {/* PAGE HEADER */}
+      <div
+        style={{
+          background: "#172554",
+          color: "#fff",
+          padding: "18px 20px",
+          borderRadius: 10,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          boxShadow: "0 3px 10px rgba(15,23,42,.12)",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, fontSize: 21, fontWeight: 800 }}>
+            Expense Management
+          </h2>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#cbd5e1" }}>
+            Expense history, records and reports
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => loadExpenseHistory(currentPage)}
+          disabled={expenseHistoryLoading}
+          style={{
+            padding: "9px 14px",
+            background: "#fff",
+            color: "#172554",
+            border: "none",
+            borderRadius: 7,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {expenseHistoryLoading ? "Loading..." : "↻ Refresh"}
+        </button>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            padding: 17,
+            borderLeft: "4px solid #ea580c",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            TOTAL EXPENSE AMOUNT
+          </div>
+          <div
+            style={{
+              fontSize: 24,
+              fontWeight: 800,
+              color: "#ea580c",
+              marginTop: 7,
+            }}
+          >
+            ৳ {formatMoney(expenseHistorySummary.totalAmount)}
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            padding: 17,
+            borderLeft: "4px solid #0f766e",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            TOTAL EXPENSE ENTRIES
+          </div>
+          <div
+            style={{
+              fontSize: 24,
+              fontWeight: 800,
+              color: "#0f766e",
+              marginTop: 7,
+            }}
+          >
+            {Number(expenseHistorySummary.totalEntries || 0).toLocaleString("en-BD")}
+          </div>
+        </div>
+      </div>
+
+      {/* SEARCH & FILTER CARD */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 18,
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 16px",
+            color: "#172554",
+            fontSize: 16,
+            fontWeight: 800,
+          }}
+        >
+          Search & Filters
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: 14,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>From Date</label>
+            <input
+              type="date"
+              value={expenseHistoryFilters.fromDate}
+              onChange={(e) => updateFilter("fromDate", e.target.value)}
+              style={inputStyleExpense}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>To Date</label>
+            <input
+              type="date"
+              value={expenseHistoryFilters.toDate}
+              onChange={(e) => updateFilter("toDate", e.target.value)}
+              style={inputStyleExpense}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Expense Category</label>
+            <select
+              value={expenseHistoryFilters.categoryId}
+              onChange={(e) => updateFilter("categoryId", e.target.value)}
+              style={inputStyleExpense}
+            >
+              <option value="">All Categories</option>
+              {activeCategories.map((category) => (
+                <option key={category._id} value={category._id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+
+            {!expenseCategoryLoading && activeCategories.length === 0 && (
+              <p style={{ color: "#dc2626", fontSize: 11, marginTop: 5 }}>
+                No active expense categories found.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label style={labelStyle}>Account</label>
+            <select
+              value={expenseHistoryFilters.accountId}
+              onChange={(e) => updateFilter("accountId", e.target.value)}
+              style={inputStyleExpense}
+            >
+              <option value="">All Accounts</option>
+              {activeAccounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName} ({account.accountType})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Search Expense</label>
+            <input
+              type="text"
+              value={expenseHistoryFilters.search}
+              onChange={(e) => updateFilter("search", e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") loadExpenseHistory(1);
+              }}
+              placeholder="Voucher Number, Reference, Description..."
+              style={inputStyleExpense}
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 9,
+            marginTop: 18,
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={expenseHistoryLoading}
+            style={{
+              padding: "10px 17px",
+              background: "#fff",
+              color: "#475569",
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Clear Filters
+          </button>
+
+          <button
+            type="button"
+            onClick={() => loadExpenseHistory(1)}
+            disabled={expenseHistoryLoading}
+            style={{
+              padding: "10px 20px",
+              background: "#0f766e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 7,
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            {expenseHistoryLoading ? "Searching..." : "⌕ Search Expenses"}
+          </button>
+        </div>
+      </div>
+
+      {/* EXPENSE HISTORY TABLE */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 14,
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              color: "#172554",
+              fontSize: 16,
+              fontWeight: 800,
+            }}
+          >
+            Expense History
+          </h3>
+
+          <span style={{ fontSize: 12, color: "#64748b" }}>
+            Total Records: {Number(expenseHistoryPagination.totalExpenses || 0).toLocaleString("en-BD")}
+          </span>
+        </div>
+
+        {expenseHistoryLoading ? (
+          <div style={{ padding: 25, textAlign: "center", color: "#64748b" }}>
+            Loading expense history...
+          </div>
+        ) : expenseHistory.length === 0 ? (
+          <div
+            style={{
+              padding: 25,
+              textAlign: "center",
+              color: "#64748b",
+              background: "#f8fafc",
+              borderRadius: 7,
+              fontSize: 13,
+            }}
+          >
+            No expense records found.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: 1120,
+                fontSize: 12,
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f1f5f9" }}>
+                  {[
+                    "Date",
+                    "Voucher No.",
+                    "Category",
+                    "Account",
+                    "Amount",
+                    "Reference",
+                    "Description",
+                    "Actions",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      style={{
+                        padding: "12px 9px",
+                        textAlign: "left",
+                        color: "#475569",
+                        borderBottom: "1px solid #e2e8f0",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {expenseHistory.map((expense) => (
+                  <tr
+                    key={expense._id}
+                    style={{ borderBottom: "1px solid #e2e8f0" }}
+                  >
+                    <td style={{ padding: 10, whiteSpace: "nowrap" }}>
+                      {expense.expenseDate
+                        ? new Date(expense.expenseDate).toLocaleDateString("en-GB")
+                        : "-"}
+                    </td>
+
+                    <td style={{ padding: 10, fontWeight: 700 }}>
+                      {expense.voucherNumber || "-"}
+                    </td>
+
+                    <td style={{ padding: 10 }}>
+                      {expense.categoryName || "-"}
+                    </td>
+
+                    <td style={{ padding: 10 }}>
+                      {expense.accountName || "-"}
+                    </td>
+
+                    <td
+                      style={{
+                        padding: 10,
+                        fontWeight: 800,
+                        color: "#dc2626",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      ৳ {formatMoney(expense.amount)}
+                    </td>
+
+                    <td style={{ padding: 10 }}>
+                      {expense.reference || "-"}
+                    </td>
+
+                    <td style={{ padding: 10, maxWidth: 220 }}>
+                      {expense.description || "-"}
+                    </td>
+
+                    {/* ACTION BUTTONS */}
+                    <td style={{ padding: 10, whiteSpace: "nowrap" }}>
+                      <div style={{ display: "flex", gap: 7 }}>
+                        <button
+                          type="button"
+                          onClick={() => openExpenseEditModal(expense)}
+                          style={{
+                            padding: "7px 11px",
+                            background: "#2563eb",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            loadExpenseCorrectionHistory(expense._id)
+                          }
+                          style={{
+                            padding: "7px 11px",
+                            background: "#334155",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          History
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* PAGINATION */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: "1px solid #e2e8f0",
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#64748b" }}>
+            Page {currentPage} of {totalPages}
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              disabled={currentPage <= 1 || expenseHistoryLoading}
+              onClick={() => loadExpenseHistory(currentPage - 1)}
+              style={{
+                padding: "8px 14px",
+                border: "1px solid #cbd5e1",
+                borderRadius: 7,
+                background: "#fff",
+                color: "#475569",
+                fontWeight: 700,
+                cursor: "pointer",
+                opacity: currentPage <= 1 ? 0.4 : 1,
+              }}
+            >
+              Previous
+            </button>
+
+            <button
+              type="button"
+              disabled={currentPage >= totalPages || expenseHistoryLoading}
+              onClick={() => loadExpenseHistory(currentPage + 1)}
+              style={{
+                padding: "8px 14px",
+                border: "1px solid #0f766e",
+                borderRadius: 7,
+                background: "#0f766e",
+                color: "#fff",
+                fontWeight: 700,
+                cursor: "pointer",
+                opacity: currentPage >= totalPages ? 0.4 : 1,
+              }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================================== */}
+      {/* EDIT EXPENSE MODAL */}
+      {/* ===================================== */}
+
+      {expenseEditModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,.65)",
+            zIndex: 9999,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 12,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 650,
+              maxHeight: "92vh",
+              overflowY: "auto",
+              background: "#fff",
+              borderRadius: 12,
+              boxShadow: "0 15px 40px rgba(0,0,0,.25)",
+            }}
+          >
+            <div
+              style={{
+                background: "#172554",
+                color: "#fff",
+                padding: "17px 20px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
+                  Edit Expense
+                </h3>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#cbd5e1" }}>
+                  Correct expense information
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={expenseEditLoading}
+                onClick={() => setExpenseEditModalOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 25,
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: 14,
+                }}
+              >
+                <div>
+                  <label style={labelStyle}>Expense Date *</label>
+                  <input
+                    type="date"
+                    value={expenseEditFormData.expenseDate}
+                    onChange={(e) =>
+                      handleExpenseEditChange("expenseDate", e.target.value)
+                    }
+                    style={inputStyleExpense}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Expense Category *</label>
+                  <select
+                    value={expenseEditFormData.categoryId}
+                    onChange={(e) =>
+                      handleExpenseEditChange("categoryId", e.target.value)
+                    }
+                    style={inputStyleExpense}
+                  >
+                    <option value="">Select Category</option>
+                    {activeCategories.map((category) => (
+                      <option key={category._id} value={category._id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Account *</label>
+                  <select
+                    value={expenseEditFormData.accountId}
+                    onChange={(e) =>
+                      handleExpenseEditChange("accountId", e.target.value)
+                    }
+                    style={inputStyleExpense}
+                  >
+                    <option value="">Select Account</option>
+                    {activeAccounts.map((account) => (
+                      <option key={account._id} value={account._id}>
+                        {account.accountName} ({account.accountType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Amount (৳) *</label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={expenseEditFormData.amount}
+                    onChange={(e) =>
+                      handleExpenseEditChange("amount", e.target.value)
+                    }
+                    placeholder="Enter amount"
+                    style={inputStyleExpense}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Voucher Number</label>
+                  <input
+                    type="text"
+                    value={expenseEditFormData.voucherNumber}
+                    onChange={(e) =>
+                      handleExpenseEditChange("voucherNumber", e.target.value)
+                    }
+                    placeholder="Voucher number"
+                    style={inputStyleExpense}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Reference</label>
+                  <input
+                    type="text"
+                    value={expenseEditFormData.reference}
+                    onChange={(e) =>
+                      handleExpenseEditChange("reference", e.target.value)
+                    }
+                    placeholder="Reference"
+                    style={inputStyleExpense}
+                  />
+                </div>
+
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Description</label>
+                  <textarea
+                    rows={3}
+                    value={expenseEditFormData.description}
+                    onChange={(e) =>
+                      handleExpenseEditChange("description", e.target.value)
+                    }
+                    placeholder="Expense description"
+                    style={{
+                      ...inputStyleExpense,
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={{ ...labelStyle, color: "#dc2626" }}>
+                    Correction Reason *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={expenseEditFormData.reason}
+                    onChange={(e) =>
+                      handleExpenseEditChange("reason", e.target.value)
+                    }
+                    placeholder="Why are you correcting this expense?"
+                    style={{
+                      ...inputStyleExpense,
+                      resize: "vertical",
+                      borderColor: "#fca5a5",
+                    }}
+                  />
+                  <p style={{ fontSize: 11, color: "#64748b", marginTop: 5 }}>
+                    Correction reason will be saved permanently in the history.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 9,
+                  flexWrap: "wrap",
+                  marginTop: 20,
+                  paddingTop: 15,
+                  borderTop: "1px solid #e2e8f0",
+                }}
+              >
+                <button
+                  type="button"
+                  disabled={expenseEditLoading}
+                  onClick={() => setExpenseEditModalOpen(false)}
+                  style={{
+                    padding: "10px 17px",
+                    background: "#fff",
+                    color: "#475569",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 7,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={expenseEditLoading}
+                  onClick={saveExpenseEdit}
+                  style={{
+                    padding: "10px 20px",
+                    background: "#0f766e",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 7,
+                    fontWeight: 800,
+                    cursor: expenseEditLoading ? "not-allowed" : "pointer",
+                    opacity: expenseEditLoading ? 0.6 : 1,
+                  }}
+                >
+                  {expenseEditLoading ? "Updating..." : "Save Correction"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================== */}
+      {/* CORRECTION HISTORY MODAL */}
+      {/* ===================================== */}
+
+      {expenseCorrectionModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,.65)",
+            zIndex: 10000,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 12,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 750,
+              maxHeight: "92vh",
+              overflowY: "auto",
+              background: "#fff",
+              borderRadius: 12,
+              boxShadow: "0 15px 40px rgba(0,0,0,.25)",
+            }}
+          >
+            <div
+              style={{
+                background: "#172554",
+                color: "#fff",
+                padding: "17px 20px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
+                  Expense Correction History
+                </h3>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#cbd5e1" }}>
+                  Complete expense modification records
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseCorrectionModalOpen(false);
+                  setExpenseCorrectionData(null);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 25,
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              {expenseCorrectionLoading ? (
+                <div
+                  style={{
+                    padding: 35,
+                    textAlign: "center",
+                    color: "#64748b",
+                  }}
+                >
+                  Loading correction history...
+                </div>
+              ) : !expenseCorrectionData ? (
+                <div
+                  style={{
+                    padding: 25,
+                    textAlign: "center",
+                    color: "#64748b",
+                  }}
+                >
+                  No history data available.
+                </div>
+              ) : (
+                <>
+                  {/* CURRENT EXPENSE SUMMARY */}
+                  <div
+                    style={{
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 9,
+                      padding: 15,
+                      marginBottom: 18,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <strong style={{ color: "#172554" }}>
+                        Current Expense
+                      </strong>
+
+                      <span
+                        style={{
+                          background: "#ccfbf1",
+                          color: "#0f766e",
+                          padding: "4px 9px",
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {expenseCorrectionData.totalCorrections || 0} Corrections
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                        gap: 12,
+                        marginTop: 13,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          Voucher
+                        </div>
+                        <strong style={{ fontSize: 13 }}>
+                          {expenseCorrectionData.expense?.voucherNumber || "-"}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          Category
+                        </div>
+                        <strong style={{ fontSize: 13 }}>
+                          {expenseCorrectionData.expense?.categoryName || "-"}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          Account
+                        </div>
+                        <strong style={{ fontSize: 13 }}>
+                          {expenseCorrectionData.expense?.accountName || "-"}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          Current Amount
+                        </div>
+                        <strong style={{ fontSize: 15, color: "#dc2626" }}>
+                          ৳ {formatMoney(expenseCorrectionData.expense?.amount)}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* HISTORY LIST */}
+                  <h4
+                    style={{
+                      margin: "0 0 12px",
+                      color: "#172554",
+                      fontSize: 15,
+                      fontWeight: 800,
+                    }}
+                  >
+                    Correction Records
+                  </h4>
+
+                  {!expenseCorrectionData.history?.length ? (
+                    <div
+                      style={{
+                        padding: 25,
+                        textAlign: "center",
+                        background: "#f8fafc",
+                        borderRadius: 8,
+                        color: "#64748b",
+                        fontSize: 13,
+                      }}
+                    >
+                      No corrections have been made to this expense yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 12 }}>
+                      {expenseCorrectionData.history.map((history, index) => {
+                        const previous = history.previousData || {};
+
+                        return (
+                          <div
+                            key={history._id || index}
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              borderLeft: "4px solid #0f766e",
+                              borderRadius: 9,
+                              padding: 15,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                gap: 10,
+                                flexWrap: "wrap",
+                                marginBottom: 12,
+                              }}
+                            >
+                              <strong style={{ color: "#172554", fontSize: 13 }}>
+                                Correction #{expenseCorrectionData.history.length - index}
+                              </strong>
+
+                              <span style={{ fontSize: 11, color: "#64748b" }}>
+                                {history.editedAt
+                                  ? new Date(history.editedAt).toLocaleString("en-GB")
+                                  : "-"}
+                              </span>
+                            </div>
+
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                                gap: 12,
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontSize: 11, color: "#64748b" }}>
+                                  Previous Date
+                                </div>
+                                <strong style={{ fontSize: 12 }}>
+                                  {previous.expenseDate
+                                    ? new Date(previous.expenseDate).toLocaleDateString("en-GB")
+                                    : "-"}
+                                </strong>
+                              </div>
+
+                              <div>
+                                <div style={{ fontSize: 11, color: "#64748b" }}>
+                                  Previous Category
+                                </div>
+                                <strong style={{ fontSize: 12 }}>
+                                  {previous.categoryName || "-"}
+                                </strong>
+                              </div>
+
+                              <div>
+                                <div style={{ fontSize: 11, color: "#64748b" }}>
+                                  Previous Account
+                                </div>
+                                <strong style={{ fontSize: 12 }}>
+                                  {previous.accountName || "-"}
+                                </strong>
+                              </div>
+
+                              <div>
+                                <div style={{ fontSize: 11, color: "#64748b" }}>
+                                  Previous Amount
+                                </div>
+                                <strong style={{ fontSize: 13, color: "#dc2626" }}>
+                                  ৳ {formatMoney(previous.amount)}
+                                </strong>
+                              </div>
+
+                              <div>
+                                <div style={{ fontSize: 11, color: "#64748b" }}>
+                                  Previous Voucher
+                                </div>
+                                <strong style={{ fontSize: 12 }}>
+                                  {previous.voucherNumber || "-"}
+                                </strong>
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                marginTop: 12,
+                                padding: 10,
+                                background: "#fff7ed",
+                                borderRadius: 7,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  color: "#9a3412",
+                                  marginBottom: 4,
+                                }}
+                              >
+                                CORRECTION REASON
+                              </div>
+                              <div style={{ fontSize: 12, color: "#7c2d12" }}>
+                                {history.reason || "-"}
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                marginTop: 10,
+                                fontSize: 11,
+                                color: "#64748b",
+                              }}
+                            >
+                              Edited By:{" "}
+                              <strong>
+                                {history.editedBy?.name ||
+                                  history.editedBy?.username ||
+                                  "Admin"}
+                              </strong>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: 18,
+                  paddingTop: 14,
+                  borderTop: "1px solid #e2e8f0",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpenseCorrectionModalOpen(false);
+                    setExpenseCorrectionData(null);
+                  }}
+                  style={{
+                    padding: "10px 20px",
+                    background: "#172554",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 7,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+
+
+
+function renderDateWiseExpenseReport() {
+  const activeAccounts = accounts.filter(
+    (account) => account.isActive !== false
+  );
+
+  const activeCategories = expenseCategories.filter(
+    (category) => category.isActive !== false
+  );
+
+  const formatMoney = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#475569",
+    marginBottom: 6,
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #cbd5e1",
+    borderRadius: 7,
+    fontSize: 13,
+    background: "#fff",
+    boxSizing: "border-box",
+    outline: "none",
+  };
+
+  const updateFilter = (key, value) => {
+    setDateWiseExpenseFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const clearFilters = () => {
+    const emptyFilters = {
+      fromDate: "",
+      toDate: "",
+      categoryId: "",
+      accountId: "",
+    };
+
+    setDateWiseExpenseFilters(emptyFilters);
+    loadDateWiseExpenseReport(emptyFilters);
+    setExpandedExpenseDate("");
+  };
+
+  const toggleDateDetails = (dateKey) => {
+    setExpandedExpenseDate((prev) =>
+      prev === dateKey ? "" : dateKey
+    );
+  };
+
+  const getDateKey = (date) => {
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return "";
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const getDateLabel = (date) => {
+    const d = new Date(date);
+
+    if (Number.isNaN(d.getTime())) return "-";
+
+    return d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const getExpensesForDate = (date) => {
+    const targetDate = getDateKey(date);
+
+    return dateWiseExpenseDetails.filter(
+      (expense) => getDateKey(expense.expenseDate) === targetDate
+    );
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+
+      {/* PAGE HEADER */}
+      <div
+        style={{
+          background: "#172554",
+          color: "#fff",
+          padding: "18px 20px",
+          borderRadius: 10,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          boxShadow: "0 3px 10px rgba(15,23,42,.12)",
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0, fontSize: 21, fontWeight: 800 }}>
+            Date-wise Expense Report
+          </h2>
+
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#cbd5e1" }}>
+            Daily expense summary and detailed records
+          </p>
+
+          <br></br>
+<button
+  type="button"
+  onClick={() => exportExpenseReportPDF("date")}
+  disabled={
+    dateWiseExpenseLoading ||
+    dateWiseExpenseReport.length === 0
+  }
+  style={{
+    padding: "9px 16px",
+    background: "#dc2626",
+    color: "#fff",
+    border: "none",
+    borderRadius: 7,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    opacity:
+      dateWiseExpenseLoading ||
+      dateWiseExpenseReport.length === 0
+        ? 0.5
+        : 1,
+  }}
+>
+  <Download size={15} style={{ marginRight: 6, verticalAlign: "middle" }} />
+  Export PDF
+</button>
+
+        </div>
+
+
+
+        <button
+          type="button"
+          onClick={() => loadDateWiseExpenseReport()}
+          disabled={dateWiseExpenseLoading}
+          style={{
+            padding: "9px 14px",
+            background: "#fff",
+            color: "#172554",
+            border: "none",
+            borderRadius: 7,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {dateWiseExpenseLoading ? "Loading..." : "↻ Refresh"}
+        </button>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderLeft: "4px solid #ea580c",
+            borderRadius: 10,
+            padding: 17,
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            TOTAL EXPENSE
+          </div>
+
+          <div style={{ fontSize: 23, fontWeight: 800, color: "#ea580c", marginTop: 7 }}>
+            ৳ {formatMoney(dateWiseExpenseSummary.totalAmount)}
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderLeft: "4px solid #0f766e",
+            borderRadius: 10,
+            padding: 17,
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            TOTAL ENTRIES
+          </div>
+
+          <div style={{ fontSize: 23, fontWeight: 800, color: "#0f766e", marginTop: 7 }}>
+            {Number(dateWiseExpenseSummary.totalEntries || 0).toLocaleString("en-BD")}
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderLeft: "4px solid #2563eb",
+            borderRadius: 10,
+            padding: 17,
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            TOTAL EXPENSE DAYS
+          </div>
+
+          <div style={{ fontSize: 23, fontWeight: 800, color: "#2563eb", marginTop: 7 }}>
+            {Number(dateWiseExpenseSummary.totalDays || 0).toLocaleString("en-BD")}
+          </div>
+        </div>
+      </div>
+
+      {/* FILTER CARD */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 18,
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 16px",
+            color: "#172554",
+            fontSize: 16,
+            fontWeight: 800,
+          }}
+        >
+          Report Filters
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 14,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>From Date</label>
+            <input
+              type="date"
+              value={dateWiseExpenseFilters.fromDate}
+              onChange={(e) => updateFilter("fromDate", e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>To Date</label>
+            <input
+              type="date"
+              value={dateWiseExpenseFilters.toDate}
+              onChange={(e) => updateFilter("toDate", e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Expense Category</label>
+            <select
+              value={dateWiseExpenseFilters.categoryId}
+              onChange={(e) => updateFilter("categoryId", e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">All Categories</option>
+
+              {activeCategories.map((category) => (
+                <option key={category._id} value={category._id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Account</label>
+            <select
+              value={dateWiseExpenseFilters.accountId}
+              onChange={(e) => updateFilter("accountId", e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">All Accounts</option>
+
+              {activeAccounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName} ({account.accountType})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 9,
+            marginTop: 18,
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={dateWiseExpenseLoading}
+            style={{
+              padding: "10px 17px",
+              background: "#fff",
+              color: "#475569",
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Clear Filters
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setExpandedExpenseDate("");
+              loadDateWiseExpenseReport();
+            }}
+            disabled={dateWiseExpenseLoading}
+            style={{
+              padding: "10px 20px",
+              background: "#0f766e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 7,
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            {dateWiseExpenseLoading ? "Loading..." : "⌕ Generate Report"}
+          </button>
+        </div>
+      </div>
+
+      {/* DAILY REPORT TABLE */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 10,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 14,
+          }}
+        >
+          <h3 style={{ margin: 0, color: "#172554", fontSize: 16, fontWeight: 800 }}>
+            Daily Expense Summary
+          </h3>
+
+          <span style={{ fontSize: 12, color: "#64748b" }}>
+            {dateWiseExpenseReport.length} Days
+          </span>
+        </div>
+
+        {dateWiseExpenseLoading ? (
+          <div style={{ padding: 25, textAlign: "center", color: "#64748b" }}>
+            Loading daily expense report...
+          </div>
+        ) : dateWiseExpenseReport.length === 0 ? (
+          <div
+            style={{
+              padding: 25,
+              textAlign: "center",
+              color: "#64748b",
+              background: "#f8fafc",
+              borderRadius: 7,
+              fontSize: 13,
+            }}
+          >
+            No expense records found for the selected filters.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: 650,
+                fontSize: 12,
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f1f5f9" }}>
+                  {["Date", "Total Entries", "Total Expense", "Details"].map((heading) => (
+                    <th
+                      key={heading}
+                      style={{
+                        padding: "12px 10px",
+                        textAlign: "left",
+                        color: "#475569",
+                        borderBottom: "1px solid #e2e8f0",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {dateWiseExpenseReport.map((day, index) => {
+                  const dateKey = getDateKey(day.date);
+                  const isExpanded = expandedExpenseDate === dateKey;
+
+                  return (
+                    <React.Fragment key={dateKey || index}>
+                      <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                        <td style={{ padding: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                          {getDateLabel(day.date)}
+                        </td>
+
+                        <td style={{ padding: 11 }}>
+                          {Number(day.totalEntries || 0).toLocaleString("en-BD")}
+                        </td>
+
+                        <td
+                          style={{
+                            padding: 11,
+                            color: "#dc2626",
+                            fontWeight: 800,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          ৳ {formatMoney(day.totalAmount)}
+                        </td>
+
+                        <td style={{ padding: 11 }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleDateDetails(dateKey)}
+                            style={{
+                              padding: "7px 12px",
+                              background: isExpanded ? "#172554" : "#0f766e",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {isExpanded ? "Hide Details ▲" : "View Details ▼"}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: 12, background: "#f8fafc" }}>
+                            <div style={{ fontWeight: 800, color: "#172554", marginBottom: 10 }}>
+                              Expenses on {getDateLabel(day.date)}
+                            </div>
+
+                            {getExpensesForDate(day.date).length === 0 ? (
+                              <div style={{ color: "#64748b", fontSize: 12 }}>
+                                No detailed expenses found.
+                              </div>
+                            ) : (
+                              <div style={{ overflowX: "auto" }}>
+                                <table
+                                  style={{
+                                    width: "100%",
+                                    minWidth: 650,
+                                    borderCollapse: "collapse",
+                                    background: "#fff",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <thead>
+                                    <tr style={{ background: "#e2e8f0" }}>
+                                      {[
+                                        "Voucher No.",
+                                        "Category",
+                                        "Account",
+                                        "Amount",
+                                        "Reference",
+                                        "Description",
+                                      ].map((heading) => (
+                                        <th
+                                          key={heading}
+                                          style={{
+                                            padding: 9,
+                                            textAlign: "left",
+                                            color: "#475569",
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          {heading}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+
+                                  <tbody>
+                                    {getExpensesForDate(day.date).map((expense) => (
+                                      <tr
+                                        key={expense._id}
+                                        style={{ borderTop: "1px solid #e2e8f0" }}
+                                      >
+                                        <td style={{ padding: 9 }}>
+                                          {expense.voucherNumber || "-"}
+                                        </td>
+
+                                        <td style={{ padding: 9 }}>
+                                          {expense.categoryName || "-"}
+                                        </td>
+
+                                        <td style={{ padding: 9 }}>
+                                          {expense.accountName || "-"}
+                                        </td>
+
+                                        <td
+                                          style={{
+                                            padding: 9,
+                                            color: "#dc2626",
+                                            fontWeight: 800,
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          ৳ {formatMoney(expense.amount)}
+                                        </td>
+
+                                        <td style={{ padding: 9 }}>
+                                          {expense.reference || "-"}
+                                        </td>
+
+                                        <td style={{ padding: 9 }}>
+                                          {expense.description || "-"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+
+              <tfoot>
+                <tr style={{ background: "#f1f5f9", fontWeight: 800 }}>
+                  <td style={{ padding: 12 }}>Grand Total</td>
+                  <td style={{ padding: 12 }}>
+                    {Number(dateWiseExpenseSummary.totalEntries || 0).toLocaleString("en-BD")}
+                  </td>
+                  <td style={{ padding: 12, color: "#dc2626", whiteSpace: "nowrap" }}>
+                    ৳ {formatMoney(dateWiseExpenseSummary.totalAmount)}
+                  </td>
+                  <td style={{ padding: 12 }}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const formatMoney = (amount) => {
+  return `৳ ${Number(amount || 0).toLocaleString("en-BD", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+
+
+
+async function exportExpenseReportPDF(reportType) {
+  try {
+    const isDateWise = reportType === "date";
+
+    const filters = isDateWise
+      ? dateWiseExpenseFilters
+      : categoryWiseExpenseFilters;
+
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== "" && value !== null && value !== undefined) {
+        params.append(key, value);
+      }
+    });
+
+    const endpoint = isDateWise
+      ? "/expenses/date-wise-report/pdf"
+      : "/expenses/category-wise-report/pdf";
+
+    const response = await fetch(
+      `${API}${endpoint}?${params.toString()}`,
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
+
+    if (!response.ok) {
+      let message = "PDF তৈরি করা যায়নি";
+
+      try {
+        const errorData = await response.json();
+        message = errorData.message || message;
+      } catch {
+        // Server returned a non-JSON error response.
+      }
+
+      throw new Error(message);
+    }
+
+    const blob = await response.blob();
+
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = downloadUrl;
+    link.download = isDateWise
+      ? "date-wise-expense-report.pdf"
+      : "category-wise-expense-report.pdf";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(downloadUrl);
+
+    toast.success("PDF সফলভাবে তৈরি হয়েছে");
+  } catch (error) {
+    console.error("Expense PDF Download Error:", error);
+    toast.error(error.message || "PDF Download failed");
+  }
+}
+
+
+
+
+const labelStyle = "block text-sm font-medium text-slate-700 mb-1";
+
+
+
+function renderCategoryWiseExpenseReport() {
+  const activeAccounts = accounts.filter(
+    (item) => item.isActive !== false
+  );
+
+  const reportInputStyle = {
+    ...inputStyle,
+    width: "100%",
+    marginTop: 7,
+    borderRadius: 9,
+    minHeight: 43,
+    boxSizing: "border-box",
+  };
+
+  const reportLabelStyle = {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+    marginTop: 10,
+  };
+
+  const sectionTitleStyle = {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#334155",
+    margin: "0 0 15px",
+  };
+
+  const cardStyle = {
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: 18,
+    minWidth: 0,
+  };
+
+  const primaryButtonStyle = {
+    border: "none",
+    background: "#0f766e",
+    color: "#fff",
+    padding: "11px 20px",
+    borderRadius: 9,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: categoryWiseExpenseLoading ? "not-allowed" : "pointer",
+    opacity: categoryWiseExpenseLoading ? 0.6 : 1,
+  };
+
+  const secondaryButtonStyle = {
+    border: "1px solid #cbd5e1",
+    background: "#fff",
+    color: "#475569",
+    padding: "11px 20px",
+    borderRadius: 9,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+
+  const tableHeaderStyle = {
+    padding: "13px 14px",
+    background: "#f1f5f9",
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: "left",
+    whiteSpace: "nowrap",
+    borderBottom: "1px solid #e2e8f0",
+  };
+
+  const tableCellStyle = {
+    padding: "13px 14px",
+    fontSize: 13,
+    color: "#334155",
+    borderBottom: "1px solid #f1f5f9",
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "-";
+    return new Date(date).toLocaleDateString("en-GB");
+  };
+
+  const getCategoryExpenses = (categoryId) => {
+    return categoryWiseExpenseDetails.filter(
+      (expense) =>
+        String(expense.categoryId || "") === String(categoryId || "")
+    );
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* HEADER */}
+      <div>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 22,
+            fontWeight: 700,
+            color: "#1e293b",
+          }}
+        >
+          Category-wise Expense Report
+        </h2>
+
+        <p
+          style={{
+            margin: "6px 0 0",
+            fontSize: 13,
+            color: "#64748b",
+          }}
+        >
+          View expenses by category and check category-wise details.
+        </p>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gap: 14,
+        }}
+      >
+        {/* TOTAL EXPENSE */}
+        <div style={cardStyle}>
+          <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+            Total Expense
+          </div>
+
+          <div
+            style={{
+              fontSize: 25,
+              fontWeight: 800,
+              color: "#dc2626",
+              marginTop: 10,
+            }}
+          >
+            {formatMoney(categoryWiseExpenseSummary.totalAmount || 0)}
+          </div>
+
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 5 }}>
+            Total expense amount
+          </div>
+        </div>
+
+        {/* TOTAL ENTRIES */}
+        <div style={cardStyle}>
+          <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+            Total Entries
+          </div>
+
+          <div
+            style={{
+              fontSize: 25,
+              fontWeight: 800,
+              color: "#1e293b",
+              marginTop: 10,
+            }}
+          >
+            {categoryWiseExpenseSummary.totalEntries || 0}
+          </div>
+
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 5 }}>
+            Total expense transactions
+          </div>
+        </div>
+
+        {/* TOTAL CATEGORIES */}
+        <div style={cardStyle}>
+          <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>
+            Total Categories
+          </div>
+
+          <div
+            style={{
+              fontSize: 25,
+              fontWeight: 800,
+              color: "#0f766e",
+              marginTop: 10,
+            }}
+          >
+            {categoryWiseExpenseSummary.totalCategories || 0}
+          </div>
+
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 5 }}>
+            Categories with expenses
+          </div>
+        </div>
+      </div>
+
+      {/* REPORT FILTERS */}
+      <div style={cardStyle}>
+        <h3 style={sectionTitleStyle}>Report Filters</h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: 15,
+          }}
+        >
+          {/* FROM DATE */}
+          <div>
+            <label style={reportLabelStyle}>From Date</label>
+
+            <input
+              type="date"
+              style={reportInputStyle}
+              value={categoryWiseExpenseFilters.fromDate}
+              onChange={(e) =>
+                setCategoryWiseExpenseFilters((prev) => ({
+                  ...prev,
+                  fromDate: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {/* TO DATE */}
+          <div>
+            <label style={reportLabelStyle}>To Date</label>
+
+            <input
+              type="date"
+              style={reportInputStyle}
+              value={categoryWiseExpenseFilters.toDate}
+              onChange={(e) =>
+                setCategoryWiseExpenseFilters((prev) => ({
+                  ...prev,
+                  toDate: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {/* ACCOUNT */}
+          <div>
+            <label style={reportLabelStyle}>Account</label>
+
+            <select
+              style={reportInputStyle}
+              value={categoryWiseExpenseFilters.accountId}
+              onChange={(e) =>
+                setCategoryWiseExpenseFilters((prev) => ({
+                  ...prev,
+                  accountId: e.target.value,
+                }))
+              }
+            >
+              <option value="">All Accounts</option>
+
+              {activeAccounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* FILTER BUTTONS */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            marginTop: 20,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => loadCategoryWiseExpenseReport()}
+            disabled={categoryWiseExpenseLoading}
+            style={primaryButtonStyle}
+          >
+            {categoryWiseExpenseLoading ? "Loading..." : "Generate Report"}
+          </button>
+
+          <button
+            type="button"
+            style={secondaryButtonStyle}
+            onClick={() => {
+              const resetFilters = {
+                fromDate: "",
+                toDate: "",
+                accountId: "",
+              };
+
+              setCategoryWiseExpenseFilters(resetFilters);
+              loadCategoryWiseExpenseReport(resetFilters);
+            }}
+          >
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      {/* CATEGORY REPORT TABLE */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "17px 18px",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#334155" }}>
+            Category-wise Summary
+          </h3>
+<button
+  type="button"
+  onClick={() => exportExpenseReportPDF("category")}
+  disabled={
+    categoryWiseExpenseLoading ||
+    categoryWiseExpenseReport.length === 0
+  }
+  style={{
+    marginTop: 12,
+    padding: "9px 16px",
+    background: "#dc2626",
+    color: "#fff",
+    border: "none",
+    borderRadius: 7,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    opacity:
+      categoryWiseExpenseLoading ||
+      categoryWiseExpenseReport.length === 0
+        ? 0.5
+        : 1,
+  }}
+>
+  <Download size={15} style={{ marginRight: 6, verticalAlign: "middle" }} />
+  Export PDF
+</button>
+          <p style={{ margin: "5px 0 0", fontSize: 12, color: "#94a3b8" }}>
+            Click View to see individual expense transactions.
+          </p>
+        </div>
+
+        {categoryWiseExpenseLoading ? (
+          <div style={{ padding: 35, textAlign: "center", color: "#64748b" }}>
+            Loading expense report...
+          </div>
+        ) : categoryWiseExpenseReport.length === 0 ? (
+          <div style={{ padding: 35, textAlign: "center", color: "#64748b" }}>
+            No expense data found.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                minWidth: 650,
+                borderCollapse: "collapse",
+                fontSize: 13,
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={tableHeaderStyle}>Category</th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    Total Entries
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    Total Amount
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    Share
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "center" }}>
+                    Details
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {categoryWiseExpenseReport.map((category) => {
+                  const percentage =
+                    categoryWiseExpenseSummary.totalAmount > 0
+                      ? (category.totalAmount /
+                          categoryWiseExpenseSummary.totalAmount) *
+                        100
+                      : 0;
+
+                  const isExpanded =
+                    expandedExpenseCategory === String(category.categoryId);
+
+                  const details = getCategoryExpenses(category.categoryId);
+
+                  return (
+                    <React.Fragment key={category.categoryId}>
+                      {/* CATEGORY ROW */}
+                      <tr
+                        style={{
+                          background: isExpanded ? "#f8fafc" : "#fff",
+                        }}
+                      >
+                        <td style={{ ...tableCellStyle, fontWeight: 600 }}>
+                          {category.categoryName || "Uncategorized"}
+                        </td>
+
+                        <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                          {category.totalEntries || 0}
+                        </td>
+
+                        <td
+                          style={{
+                            ...tableCellStyle,
+                            textAlign: "right",
+                            fontWeight: 700,
+                            color: "#dc2626",
+                          }}
+                        >
+                          {formatMoney(category.totalAmount || 0)}
+                        </td>
+
+                        <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                          {percentage.toFixed(1)}%
+                        </td>
+
+                        <td style={{ ...tableCellStyle, textAlign: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedExpenseCategory(
+                                isExpanded ? "" : String(category.categoryId)
+                              )
+                            }
+                            style={{
+                              border: "1px solid #cbd5e1",
+                              background: isExpanded ? "#e2e8f0" : "#f8fafc",
+                              color: "#334155",
+                              padding: "6px 15px",
+                              borderRadius: 7,
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {isExpanded ? "Hide" : "View"}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* EXPANDED DETAILS */}
+                      {isExpanded && (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            style={{
+                              padding: 14,
+                              background: "#f8fafc",
+                              borderBottom: "1px solid #e2e8f0",
+                            }}
+                          >
+                            {details.length === 0 ? (
+                              <p
+                                style={{
+                                  textAlign: "center",
+                                  color: "#64748b",
+                                  padding: 20,
+                                  margin: 0,
+                                }}
+                              >
+                                No expense details found.
+                              </p>
+                            ) : (
+                              <div
+                                style={{
+                                  overflowX: "auto",
+                                  background: "#fff",
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: 9,
+                                }}
+                              >
+                                <table
+                                  style={{
+                                    width: "100%",
+                                    minWidth: 700,
+                                    borderCollapse: "collapse",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <thead>
+                                    <tr>
+                                      {[
+                                        "Date",
+                                        "Voucher",
+                                        "Account",
+                                        "Amount",
+                                        "Reference",
+                                        "Description",
+                                      ].map((heading) => (
+                                        <th
+                                          key={heading}
+                                          style={{
+                                            ...tableHeaderStyle,
+                                            padding: 11,
+                                            background: "#f1f5f9",
+                                          }}
+                                        >
+                                          {heading}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+
+                                  <tbody>
+                                    {details.map((expense) => (
+                                      <tr key={expense._id}>
+                                        <td style={tableCellStyle}>
+                                          {formatDate(expense.expenseDate)}
+                                        </td>
+
+                                        <td style={tableCellStyle}>
+                                          {expense.voucherNumber || "-"}
+                                        </td>
+
+                                        <td style={tableCellStyle}>
+                                          {expense.accountName || "-"}
+                                        </td>
+
+                                        <td
+                                          style={{
+                                            ...tableCellStyle,
+                                            textAlign: "right",
+                                            fontWeight: 700,
+                                            color: "#dc2626",
+                                          }}
+                                        >
+                                          {formatMoney(expense.amount || 0)}
+                                        </td>
+
+                                        <td style={tableCellStyle}>
+                                          {expense.reference || "-"}
+                                        </td>
+
+                                        <td style={tableCellStyle}>
+                                          {expense.description || "-"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
 function renderAccounts() {
   const fieldStyle = {
     width: "100%",
@@ -29164,6 +33110,11 @@ async function handleAdminLogout() {
   {activePage === "Inventory Dashboard" && renderInventoryDashboard()}
   {activePage === "Products" && renderProducts()}
 {activePage === "Add Account" && renderAccounts()}
+{activePage === "New Expense Entry" && renderNewExpenseEntry()}
+{activePage === "Expense Categories" && renderExpenseCategories()}
+{activePage === "Expense History & Search" && renderExpenseHistory()}
+{activePage === "Date-wise Expense Report" && renderDateWiseExpenseReport()}
+{activePage === "Category-wise Expense Report" && renderCategoryWiseExpenseReport()}
 {activePage === "Account Transactions" && renderAccountTransactions()}
 {activePage === "Transaction History" && renderTransactionHistory()}
 {activePage === "Loan Providers" && renderLoanProviders()}

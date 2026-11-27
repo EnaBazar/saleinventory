@@ -1,6 +1,6 @@
 
 import dns from "node:dns";
-
+import "dotenv/config";
 // IMPORTANT: Configure DNS before loading Mongoose
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
@@ -21,7 +21,8 @@ import accountRoutes from "./routes/accountRoutes.js";
 import loanProviderRoutes from "./routes/loanProviderRoutes.js";
 import loanRoutes from "./routes/loanRoutes.js";
 import loanStatementRoutes from "./routes/loanStatementRoutes.js";
-
+import expenseCategoryRoutes from "./routes/expenseCategoryRoutes.js";
+import expenseRoutes from "./routes/expenseRoutes.js";
 
 // Load packages only after DNS configuration
 const express = (await import("express")).default;
@@ -63,6 +64,8 @@ app.use("/api/stock-outs", requireAdmin, stockOutRoutes);
 app.use("/api/loans/providers", requireAdmin, loanProviderRoutes);
 app.use("/api/loans", requireAdmin, loanRoutes);
 app.use("/api/loans", requireAdmin, loanStatementRoutes);
+app.use("/api/expense-categories", requireAdmin, expenseCategoryRoutes);
+app.use("/api/expenses", requireAdmin, expenseRoutes);
 // Accounting Routes
 app.use("/api/accounts", requireAdmin, accountRoutes);
 

@@ -24,18 +24,19 @@ supplierPaymentId: {
   default: null,
   index: true,
 },
-    transactionType: {
-      type: String,
-      enum: [
-        "OPENING_BALANCE",
-        "DEPOSIT",
-        "WITHDRAWAL",
-        "TRANSFER_IN",
-        "TRANSFER_OUT",
-        "ADJUSTMENT",
-      ],
-      required: true,
-    },
+   transactionType: {
+  type: String,
+  enum: [
+    "OPENING_BALANCE",
+    "DEPOSIT",
+    "WITHDRAWAL",
+    "EXPENSE",
+    "TRANSFER_IN",
+    "TRANSFER_OUT",
+    "ADJUSTMENT",
+  ],
+  required: true,
+},
 
     // IN = টাকা এসেছে
     // OUT = টাকা বের হয়েছে

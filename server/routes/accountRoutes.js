@@ -245,14 +245,15 @@ if (status === "ACTIVE") {
 
     if (
       transactionType &&
-      [
-        "OPENING_BALANCE",
-        "DEPOSIT",
-        "WITHDRAWAL",
-        "TRANSFER_IN",
-        "TRANSFER_OUT",
-        "ADJUSTMENT",
-      ].includes(transactionType)
+  [
+  "OPENING_BALANCE",
+  "DEPOSIT",
+  "WITHDRAWAL",
+  "EXPENSE",
+  "TRANSFER_IN",
+  "TRANSFER_OUT",
+  "ADJUSTMENT",
+].includes(transactionType)
     ) {
       filter.transactionType = transactionType;
     }

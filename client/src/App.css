@@ -3394,3 +3394,371 @@ td {
     margin: 10mm;
   }
 }
+
+/* ==========================================================
+   DATE-WISE EXPENSE REPORT INSPIRED MASTER UI
+   Applies a consistent navy / slate / white / orange design
+   across the ERP pages without changing page logic or APIs.
+========================================================== */
+
+:root {
+  --erp-navy: #172554;
+  --erp-navy-deep: #111c43;
+  --erp-orange: #ea580c;
+  --erp-slate: #475569;
+  --erp-muted: #64748b;
+  --erp-border: #e2e8f0;
+  --erp-page: #f8fafc;
+  --erp-surface: #ffffff;
+  --erp-soft: #f1f5f9;
+}
+
+body,
+.erp-app {
+  background: var(--erp-page);
+  color: #1e293b;
+}
+
+.erp-app {
+  min-height: 100vh;
+}
+
+/* Sidebar remains light, with the same orange interaction accent. */
+.sidebar {
+  background: #fff;
+  border-right: 1px solid var(--erp-border);
+}
+
+.brand-logo,
+.help-icon {
+  background: var(--erp-navy);
+}
+
+.company-switch {
+  background: #f8fafc;
+  border-color: var(--erp-border);
+}
+
+.nav-item {
+  border-radius: 8px;
+  transition: background .18s ease, color .18s ease;
+}
+
+.nav-item:hover {
+  background: #fff3e9;
+  color: var(--erp-orange);
+}
+
+.nav-item.active {
+  background: #fff0e5;
+  color: var(--erp-orange);
+  box-shadow: inset 3px 0 0 var(--erp-orange);
+}
+
+/* Main page header follows the report's navy title treatment. */
+.topbar {
+  background: var(--erp-navy);
+  color: #fff;
+  border-bottom: 0;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, .10);
+}
+
+.topbar h1 {
+  color: #fff;
+  font-weight: 800;
+}
+
+.topbar-left p {
+  color: #cbd5e1;
+}
+
+.topbar .search-box {
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.22);
+  color: #e2e8f0;
+}
+
+.topbar .search-box input {
+  background: transparent;
+  color: #fff;
+}
+
+.topbar .search-box input::placeholder {
+  color: #cbd5e1;
+}
+
+.topbar .search-box kbd {
+  background: rgba(255,255,255,.14);
+  color: #fff;
+}
+
+.topbar .icon-button,
+.topbar .profile,
+.topbar .profile-info strong,
+.topbar .profile > svg {
+  color: #fff;
+}
+
+.topbar .profile-info span {
+  color: #cbd5e1;
+}
+
+.topbar .profile-avatar {
+  background: #fff;
+  color: var(--erp-navy);
+}
+
+/* Shared page typography and spacing. */
+.dashboard-content {
+  background: var(--erp-page);
+  color: #1e293b;
+}
+
+.dashboard-content h1,
+.dashboard-content h2,
+.dashboard-content h3,
+.dashboard-content h4 {
+  color: var(--erp-navy);
+}
+
+.dashboard-content p {
+  color: var(--erp-muted);
+}
+
+.dashboard-content .page-heading {
+  margin-bottom: 20px;
+}
+
+.dashboard-content .page-heading h2 {
+  color: var(--erp-navy);
+  font-weight: 800;
+}
+
+/* White report-style surfaces for the common ERP panels/cards. */
+.dashboard-content .panel,
+.dashboard-content .stat-card,
+.dashboard-content .category-panel,
+.dashboard-content .category-stat,
+.dashboard-content .category-card,
+.dashboard-content .customer-ledger-filter-panel,
+.dashboard-content .customer-statement-print-area,
+.dashboard-content .customer-statement-card,
+.dashboard-content .supplier-ledger-print-area,
+.dashboard-content .all-supplier-report-print,
+.dashboard-content .all-customer-report-print,
+.dashboard-content .report-card,
+.dashboard-content .card,
+.dashboard-content .dashboard-card {
+  background: #fff;
+  border: 1px solid var(--erp-border);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .035);
+}
+
+/* Keep page-specific layouts but normalize their card edges and headings. */
+.dashboard-content .panel-header h3,
+.dashboard-content .category-panel-header h3 {
+  color: var(--erp-navy);
+  font-weight: 800;
+}
+
+.dashboard-content .category-hero {
+  background: linear-gradient(120deg, #172554, #243b72);
+  border: 1px solid #172554;
+  border-radius: 10px;
+}
+
+.dashboard-content .category-hero h2,
+.dashboard-content .category-hero p {
+  color: #fff;
+}
+
+.dashboard-content .category-hero p {
+  color: #dbeafe;
+}
+
+/* Forms and filters: one consistent field style throughout the pages. */
+.dashboard-content input:not([type="checkbox"]):not([type="radio"]),
+.dashboard-content select,
+.dashboard-content textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #1e293b;
+  outline: none;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.dashboard-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.dashboard-content select:focus,
+.dashboard-content textarea:focus {
+  border-color: var(--erp-orange);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, .12);
+}
+
+.dashboard-content input::placeholder,
+.dashboard-content textarea::placeholder {
+  color: #94a3b8;
+}
+
+.dashboard-content label {
+  color: var(--erp-slate);
+  font-weight: 650;
+}
+
+/* Buttons retain their existing action colors and behavior. */
+.dashboard-content button,
+.modalOverlay button,
+.modal-overlay button {
+  border-radius: 7px;
+  font-weight: 650;
+  transition: filter .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.dashboard-content button:not(:disabled):hover {
+  filter: brightness(.97);
+}
+
+.dashboard-content button:focus-visible,
+.dashboard-content input:focus-visible,
+.dashboard-content select:focus-visible,
+.dashboard-content textarea:focus-visible {
+  outline: 2px solid rgba(234, 88, 12, .35);
+  outline-offset: 2px;
+}
+
+.dashboard-content .primary-button,
+.dashboard-content .category-primary-btn,
+.dashboard-content .help-card button {
+  background: var(--erp-orange);
+  color: #fff;
+  border-color: var(--erp-orange);
+}
+
+.dashboard-content .text-button,
+.dashboard-content .category-product-name {
+  color: var(--erp-orange);
+}
+
+/* Consistent report tables: navy headings, light separators, readable rows. */
+.dashboard-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #334155;
+}
+
+.dashboard-content table thead th {
+  background: var(--erp-navy);
+  color: #fff;
+  border-color: #334477;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .2px;
+  padding: 11px 10px;
+  white-space: nowrap;
+}
+
+.dashboard-content table tbody td {
+  color: #475569;
+  border-bottom: 1px solid #e8edf4;
+  font-size: 12px;
+}
+
+.dashboard-content table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.dashboard-content table tbody tr:hover {
+  background: #fff7ed;
+}
+
+.dashboard-content table tfoot td {
+  background: #f1f5f9;
+  color: var(--erp-navy);
+  font-weight: 800;
+  border-top: 1px solid var(--erp-border);
+}
+
+/* Standardize filter containers without disturbing nested grids. */
+.dashboard-content .customer-ledger-filter-panel,
+.dashboard-content .customer-statement-filter {
+  background: #fff;
+  border-color: var(--erp-border);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.dashboard-content .category-edit-form {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  border-radius: 9px;
+}
+
+/* Softer footer and page separators. */
+.dashboard-content .footer {
+  border-top: 1px solid var(--erp-border);
+  color: #94a3b8;
+}
+
+/* Small-screen consistency. */
+@media (max-width: 768px) {
+  .topbar {
+    min-height: 68px;
+  }
+
+  .topbar h1 {
+    color: #fff;
+  }
+
+  .dashboard-content {
+    padding-top: 18px;
+  }
+
+  .dashboard-content .panel,
+  .dashboard-content .category-panel {
+    border-radius: 9px;
+  }
+
+  .dashboard-content table {
+    min-width: max-content;
+  }
+}
+
+/* Preserve readable dark-mode surfaces if the app enables data-theme=dark. */
+[data-theme="dark"] .topbar {
+  background: #111c43;
+}
+
+[data-theme="dark"] .dashboard-content {
+  background: var(--app-bg);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dashboard-content .panel,
+[data-theme="dark"] .dashboard-content .stat-card,
+[data-theme="dark"] .dashboard-content .category-panel,
+[data-theme="dark"] .dashboard-content .category-stat,
+[data-theme="dark"] .dashboard-content .category-card,
+[data-theme="dark"] .dashboard-content .customer-ledger-filter-panel,
+[data-theme="dark"] .dashboard-content .customer-statement-card {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .dashboard-content table tbody td {
+  color: #cbd5e1;
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .dashboard-content table tbody tr:nth-child(even) {
+  background: #172033;
+}
+
+[data-theme="dark"] .dashboard-content input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="dark"] .dashboard-content select,
+[data-theme="dark"] .dashboard-content textarea {
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
