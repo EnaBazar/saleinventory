@@ -24,6 +24,18 @@ supplierPaymentId: {
   default: null,
   index: true,
 },
+source: {
+  type: String,
+  enum: [
+    "MANUAL",
+    "SALES",
+    "CUSTOMER_PAYMENT",
+    "SUPPLIER_PAYMENT",
+    "OTHER"
+  ],
+  default: "OTHER",
+  index: true,
+},
    transactionType: {
   type: String,
   enum: [

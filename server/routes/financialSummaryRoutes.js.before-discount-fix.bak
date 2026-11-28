@@ -1,0 +1,422 @@
+﻿
+import express from "express";
+
+import Sale from "../models/Sale.js";
+import SalesReturn from "../models/SalesReturn.js";
+import CommissionInvoice from "../models/CommissionInvoice.js";
+import Expense from "../models/Expense.js";
+import Account from "../models/Account.js";
+import AccountLedger from "../models/AccountLedger.js";
+import Customer from "../models/Customer.js";
+import CustomerLedger from "../models/CustomerLedger.js";
+import Supplier from "../models/Supplier.js";
+import SupplierLedger from "../models/SupplierLedger.js";
+import LoanProvider from "../models/LoanProvider.js";
+import LoanTransaction from "../models/LoanTransaction.js";
+import Lot from "../models/Lot.js";
+import StockOut from "../models/StockOut.js";
+
+const router = express.Router();
+
+const money = (value) =>
+  Number(Number(value || 0).toFixed(2));
+
+const sum = (items, getter) =>
+  money(
+    items.reduce(
+      (total, item) => total + Number(getter(item) || 0),
+      0
+    )
+  );
+
+router.get("/", async (req, res) => {
+  try {
+    const now = new Date();
+
+    const from = req.query.from
+      ? new Date(`${req.query.from}T00:00:00.000`)
+      : new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const to = req.query.to
+      ? new Date(`${req.query.to}T23:59:59.999`)
+      : new Date();
+
+    if (
+      Number.isNaN(from.getTime()) ||
+      Number.isNaN(to.getTime()) ||
+      from > to
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date range",
+      });
+    }
+
+    const period = { $gte: from, $lte: to };
+    const upToDate = { $lte: to };
+
+    const [
+      sales,
+      returns,
+      commissionInvoices,
+      expenses,
+      interestTransactions,
+      accounts,
+      accountLedgers,
+      customers,
+      customerLedgers,
+      suppliers,
+      supplierLedgers,
+      loanProviders,
+      loanTransactions,
+      lots,
+      stockOutCount,
+    ] = await Promise.all([
+      Sale.find({
+        status: "COMPLETED",
+        invoiceDate: period,
+      }).lean(),
+
+      SalesReturn.find({
+        status: "COMPLETED",
+        returnDate: period,
+      }).lean(),
+
+      CommissionInvoice.find({
+        status: "COMPLETED",
+        invoiceDate: period,
+      }).lean(),
+
+      Expense.find({
+        expenseDate: period,
+      }).lean(),
+
+      LoanTransaction.find({
+        transactionType: "REPAYMENT",
+        isVoided: { $ne: true },
+        transactionDate: period,
+      }).lean(),
+
+      Account.find({}).lean(),
+
+      AccountLedger.find({
+        isVoided: { $ne: true },
+        transactionDate: upToDate,
+      }).lean(),
+
+      Customer.find({}).lean(),
+
+      CustomerLedger.find({
+        isVoided: { $ne: true },
+        transactionDate: upToDate,
+      }).lean(),
+
+      Supplier.find({}).lean(),
+
+      SupplierLedger.find({
+        isVoided: { $ne: true },
+        transactionDate: upToDate,
+      }).lean(),
+
+      LoanProvider.find({}).lean(),
+
+      LoanTransaction.find({
+        isVoided: { $ne: true },
+        transactionDate: upToDate,
+      }).lean(),
+
+      Lot.find({}).lean(),
+
+      StockOut.countDocuments({
+        status: "COMPLETED",
+        transactionDate: period,
+      }),
+    ]);
+
+    // OWN Product Profit
+    const ownGrossProfit =
+      sum(sales, (x) => x.totalProfit) -
+      sum(returns, (x) => x.profit);
+
+    // Sale Commission Income
+    const saleCommissionIncome =
+      sum(sales, (x) => x.totalCommission) -
+      sum(returns, (x) =>
+        (x.items || []).reduce(
+          (s, item) =>
+            s + Number(item.commissionTotal || 0),
+          0
+        )
+      );
+
+    // Sale Labour Income
+    const saleLabourIncome =
+      sum(sales, (x) => x.totalLabour) -
+      sum(returns, (x) =>
+        (x.items || []).reduce(
+          (s, item) =>
+            s + Number(item.labourTotal || 0),
+          0
+        )
+      );
+
+    const otherCostPayable = sum(
+      sales,
+      (x) => x.otherCost
+    );
+
+    const salesDiscount = sum(
+      sales,
+      (x) => x.discount
+    );
+
+    // Supplier Commission Income
+    const supplierCommissionIncome = sum(
+      commissionInvoices,
+      (x) => x.commissionCost
+    );
+
+    // Commission Invoice Costs
+    const commissionInvoiceCosts = sum(
+      commissionInvoices,
+      (x) =>
+        Number(x.transportCost || 0) +
+        Number(x.labourCost || 0) +
+        Number(x.otherCost || 0)
+    );
+
+    // Operating Expenses
+    const operatingExpenses = sum(
+      expenses,
+      (x) => x.amount
+    );
+
+    // Loan Interest Expense
+    const loanInterestExpense = sum(
+      interestTransactions,
+      (x) => x.interestAmount
+    );
+
+    // Net Profit
+    const netProfit = money(
+      ownGrossProfit +
+      saleCommissionIncome +
+      saleLabourIncome +
+      salesDiscount +
+      supplierCommissionIncome -
+      commissionInvoiceCosts -
+      operatingExpenses -
+      loanInterestExpense
+    );
+
+    // Account Balances
+    const accountBalanceById = new Map();
+
+    for (const entry of accountLedgers) {
+      const id = String(entry.accountId);
+
+      accountBalanceById.set(
+        id,
+        (accountBalanceById.get(id) || 0) +
+          (
+            entry.direction === "IN"
+              ? Number(entry.amount || 0)
+              : -Number(entry.amount || 0)
+          )
+      );
+    }
+
+    const accountSummary = accounts.map((account) => ({
+      accountId: account._id,
+      accountName: account.accountName,
+      accountType: account.accountType,
+      balance: money(
+        accountBalanceById.get(String(account._id)) || 0
+      ),
+    }));
+
+    const cashAndBank = sum(
+      accountSummary,
+      (x) => x.balance
+    );
+
+    // Customer Receivable
+    const customerLedgerById = new Map();
+
+    for (const entry of customerLedgers) {
+      const id = String(entry.customerId);
+
+      customerLedgerById.set(
+        id,
+        (customerLedgerById.get(id) || 0) +
+          Number(entry.debit || 0) -
+          Number(entry.credit || 0)
+      );
+    }
+
+    const customerReceivable = money(
+      customers.reduce(
+        (s, customer) =>
+          s +
+          Number(customer.openingBalance || 0) +
+          (customerLedgerById.get(String(customer._id)) || 0),
+        0
+      )
+    );
+
+    // Supplier Payable
+    const supplierLedgerById = new Map();
+
+    for (const entry of supplierLedgers) {
+      const id = String(entry.supplierId);
+
+      supplierLedgerById.set(
+        id,
+        (supplierLedgerById.get(id) || 0) +
+          Number(entry.debit || 0) -
+          Number(entry.credit || 0)
+      );
+    }
+
+    const supplierPayable = money(
+      suppliers.reduce(
+        (s, supplier) =>
+          s +
+          Number(supplier.openingBalance || 0) +
+          (supplierLedgerById.get(String(supplier._id)) || 0),
+        0
+      )
+    );
+
+    // Loan Outstanding
+    const loanByProvider = new Map();
+
+    for (const tx of loanTransactions) {
+      const id = String(tx.providerId);
+
+      const change =
+        tx.transactionType === "RECEIVED"
+          ? Number(tx.principalAmount || 0)
+          : -Number(tx.principalAmount || 0);
+
+      loanByProvider.set(
+        id,
+        (loanByProvider.get(id) || 0) + change
+      );
+    }
+
+    const loanOutstanding = money(
+      loanProviders.reduce(
+        (s, provider) =>
+          s +
+          Number(provider.openingBalance || 0) +
+          (loanByProvider.get(String(provider._id)) || 0),
+        0
+      )
+    );
+
+    // Inventory Value
+    const ownInventoryValue = money(
+      lots
+        .filter((x) => x.stockType === "OWN")
+        .reduce(
+          (s, lot) =>
+            s +
+            Number(lot.remainingWeightKg || 0) *
+              Number(lot.purchasePricePerKg || 0),
+          0
+        )
+    );
+
+    const commissionInventoryKg = money(
+      lots
+        .filter((x) => x.stockType === "COMMISSION")
+        .reduce(
+          (s, lot) =>
+            s + Number(lot.remainingWeightKg || 0),
+          0
+        )
+    );
+
+    return res.json({
+      success: true,
+
+      data: {
+        period: {
+          from: from.toISOString(),
+          to: to.toISOString(),
+        },
+
+        profitLoss: {
+          ownGrossProfit: money(ownGrossProfit),
+          saleCommissionIncome: money(saleCommissionIncome),
+          saleLabourIncome: money(saleLabourIncome),
+          otherCostPayable: money(otherCostPayable),
+          salesDiscount: money(salesDiscount),
+          supplierCommissionIncome: money(supplierCommissionIncome),
+          commissionInvoiceCosts: money(commissionInvoiceCosts),
+          operatingExpenses,
+          loanInterestExpense,
+          netProfit,
+
+          salesCount: sales.length,
+          returnsCount: returns.length,
+          commissionInvoiceCount: commissionInvoices.length,
+        },
+
+        position: {
+          cashAndBank,
+          accountSummary,
+          customerReceivable,
+          supplierPayable,
+          loanOutstanding,
+          ownInventoryValue,
+          commissionInventoryKg,
+
+          totalAssetsShown: money(
+            cashAndBank +
+            customerReceivable +
+            ownInventoryValue
+          ),
+
+          totalLiabilitiesShown: money(
+            supplierPayable + loanOutstanding
+          ),
+
+          netAssetsBeforeOwnerCapital: money(
+            cashAndBank +
+            customerReceivable +
+            ownInventoryValue -
+            supplierPayable -
+            loanOutstanding
+          ),
+        },
+
+        notes: {
+          stockOutCount,
+
+          ownerCapitalTracking: false,
+
+          stockOutTreatment:
+            "Stock Out-à¦à¦° à¦•à¦¾à¦°à¦£/à¦®à§‚à¦²à§à¦¯ à¦¨à¦¿à¦°à§à¦¦à¦¿à¦·à§à¦Ÿà¦­à¦¾à¦¬à§‡ à¦¹à¦¿à¦¸à¦¾à¦¬à¦­à§à¦•à§à¦¤ à¦¨à§Ÿ; à¦¤à¦¾à¦‡ Net Profit-à¦ à¦…à¦¨à§à¦¤à¦°à§à¦­à§à¦•à§à¦¤ à¦•à¦°à¦¾ à¦¹à§Ÿà¦¨à¦¿à¥¤",
+
+          ownerCapitalTreatment:
+            "Owner capital/withdrawal-à¦à¦° à¦†à¦²à¦¾à¦¦à¦¾ ledger à¦¨à§‡à¦‡; Net Assets-à¦•à§‡ final owner equity à¦¬à¦²à¦¾ à¦¯à¦¾à¦¬à§‡ à¦¨à¦¾à¥¤",
+        },
+      },
+    });
+
+  } catch (error) {
+    console.error("Financial Summary Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to load financial summary",
+    });
+  }
+});
+
+export default router;
+

@@ -829,7 +829,7 @@ router.get("/dashboard/summary", async (req, res) => {
   try {
     const { period = "7", from, to } = req.query;
 
-    const trendDays = Number(period) === 30 ? 30 : 7;
+    const trendDays = Math.min(365, Math.max(7, Number(period) || 7));
     const DAY_MS = 24 * 60 * 60 * 1000;
     const BD_OFFSET = 6 * 60 * 60 * 1000;
 

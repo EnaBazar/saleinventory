@@ -3762,3 +3762,53 @@ body,
   color: var(--text-primary);
   border-color: var(--border-color);
 }
+  /* ACCOUNT STATEMENT PRINT */
+  .account-statement-print,
+  .account-statement-print * {
+    visibility: visible !important;
+  }
+
+  .account-statement-print {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 15px !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  .account-statement-print button {
+    display: none !important;
+  }
+
+  .account-statement-print table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 9px !important;
+  }
+
+  .account-statement-print th,
+  .account-statement-print td {
+    border: 1px solid #999 !important;
+    padding: 6px !important;
+    color: #000 !important;
+  }
+
+  .account-statement-print th {
+    background: #eee !important;
+    font-weight: bold !important;
+  }
+
+  .account-statement-print h2,
+  .account-statement-print h3,
+  .account-statement-print p,
+  .account-statement-print span,
+  .account-statement-print strong {
+    color: #000 !important;
+  }

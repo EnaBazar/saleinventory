@@ -23,6 +23,9 @@ import loanRoutes from "./routes/loanRoutes.js";
 import loanStatementRoutes from "./routes/loanStatementRoutes.js";
 import expenseCategoryRoutes from "./routes/expenseCategoryRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
+import financialSummaryRoutes from "./routes/financialSummaryRoutes.js";
+
+
 
 // Load packages only after DNS configuration
 const express = (await import("express")).default;
@@ -66,6 +69,11 @@ app.use("/api/loans", requireAdmin, loanRoutes);
 app.use("/api/loans", requireAdmin, loanStatementRoutes);
 app.use("/api/expense-categories", requireAdmin, expenseCategoryRoutes);
 app.use("/api/expenses", requireAdmin, expenseRoutes);
+app.use(
+  "/api/financial-summary",
+  requireAdmin,
+  financialSummaryRoutes
+);
 // Accounting Routes
 app.use("/api/accounts", requireAdmin, accountRoutes);
 

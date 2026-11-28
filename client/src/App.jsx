@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Fragment, useEffect, useState } from "react";
 import {
  LayoutDashboard, Package, ShoppingCart, ShoppingBag, Users,
@@ -19,6 +19,7 @@ import {
 import toast, { Toaster } from "react-hot-toast";
 import "./App.css";
 import AdminLogin from "./components/AdminLogin";
+import FinancialSummary from "./components/FinancialSummary";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -58,7 +59,16 @@ const navigation = [
     { label: "OWN Profit / Loss", icon: Wallet },
   ],
 },
-
+{
+  label: "Daily Cash Book",
+  icon: CalendarDays,
+  children: [
+    { label: "Cash Book Report", icon: ClipboardList },
+        { label: "Daily Stock Checking", icon: ClipboardList },
+      { label: "Daily Account Closing", icon: ClipboardList },
+           { label: "Financial Summary", icon: Wallet },
+  ],
+},
 
       { label: "Purchases", icon: ShoppingBag },
 {
@@ -105,11 +115,14 @@ const navigation = [
   label: "Accounts",
   icon: Wallet,
   children: [
-    { label: "Add Account", icon: Plus },
-    { label: "Account Transactions", icon: Wallet },
-    { label: "Transaction History", icon: ClipboardList },
-  ],
+  { label: "Add Account", icon: Plus },
+  { label: "Account Transactions", icon: Wallet },
+  { label: "Transaction History", icon: ClipboardList },
+  { label: "Account Statement & Reports", icon: ClipboardList },
+],
 },
+
+
 
 {
   label: "Expenses",
@@ -220,6 +233,95 @@ const fieldStyle = {
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
 
+  const [dashboardLiveData, setDashboardLiveData] = useState(null);
+  const [dashboardLiveLoading, setDashboardLiveLoading] = useState(false);
+  const [dashboardLiveError, setDashboardLiveError] = useState("");
+
+  useEffect(() => {
+    if (activePage !== "Dashboard") return;
+    let cancelled = false;
+
+    async function loadDashboardLiveData() {
+      setDashboardLiveLoading(true);
+      setDashboardLiveError("");
+
+      try {
+        const now = new Date();
+        const bdNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+        const today = bdNow.toISOString().slice(0, 10);
+        const yearStart = bdNow.getUTCFullYear() + "-01-01";
+        const twelveMonthStartDate = new Date(Date.UTC(
+          bdNow.getUTCFullYear(),
+          bdNow.getUTCMonth() - 11,
+          1
+        ));
+        const twelveMonthStart =
+          twelveMonthStartDate.getUTCFullYear() + "-" +
+          String(twelveMonthStartDate.getUTCMonth() + 1).padStart(2, "0") + "-01";
+
+        const results = await Promise.allSettled([
+          apiRequest("/sales/dashboard/summary?from=" + twelveMonthStart + "&to=" + today + "&period=365"),
+          apiRequest("/financial-summary?from=" + yearStart + "&to=" + today),
+          apiRequest("/products"),
+          apiRequest("/customers"),
+          apiRequest("/sales")
+        ]);
+
+        if (cancelled) return;
+
+        const valueAt = (index) =>
+          results[index].status === "fulfilled" ? results[index].value : null;
+
+        const errors = results.map((result, index) => {
+          if (result.status === "fulfilled") return null;
+          const names = ["Sales Summary", "Financial Summary", "Products", "Customers", "Invoices"];
+          return names[index] + ": " + (result.reason?.message || "লোড হয়নি");
+        }).filter(Boolean);
+
+        const salesSummary = valueAt(0)?.data || {};
+        const financialSummary = valueAt(1)?.data || {};
+        const products = valueAt(2)?.products || [];
+        const customers = valueAt(3)?.customers || [];
+        const invoices = valueAt(4)?.data || [];
+
+        const monthBuckets = Array.from({ length: 12 }, (_, index) => {
+          const date = new Date(bdNow.getUTCFullYear(), bdNow.getUTCMonth() - 11 + index, 1);
+          return {
+            key: date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0"),
+            month: date.toLocaleString("en", { month: "short" }),
+            sales: 0
+          };
+        });
+
+        const monthMap = new Map(monthBuckets.map((item) => [item.key, item]));
+
+        (salesSummary.salesTrend || []).forEach((item) => {
+          const month = monthMap.get(String(item.date || "").slice(0, 7));
+          if (month) month.sales += Number(item.netSales ?? item.sales ?? 0);
+        });
+
+        setDashboardLiveData({
+          salesSummary,
+          financialSummary,
+          products: Array.isArray(products) ? products : [],
+          customers: Array.isArray(customers) ? customers : [],
+          invoices: Array.isArray(invoices) ? invoices.slice(0, 5) : [],
+          monthlySales: monthBuckets
+        });
+
+        setDashboardLiveError(errors.join(" | "));
+      } catch (error) {
+        if (!cancelled) setDashboardLiveError(error.message || "Dashboard data load failed");
+      } finally {
+        if (!cancelled) setDashboardLiveLoading(false);
+      }
+    }
+
+    loadDashboardLiveData();
+    return () => { cancelled = true; };
+  }, [activePage]);
+
+
 
 // ======================================
 // LOAN MANAGEMENT STATES
@@ -327,7 +429,8 @@ const [loanAdjustmentSaving, setLoanAdjustmentSaving] = useState(false);
 const [accounts, setAccounts] = useState([]);
 const [accountLoading, setAccountLoading] = useState(false);
 const [accountSaving, setAccountSaving] = useState(false);
-
+const [accountAdjustmentReason, setAccountAdjustmentReason] = useState("");
+const [accountEditingId, setAccountEditingId] = useState("");
 const [accountForm, setAccountForm] = useState({
   accountName: "",
   accountType: "CASH",
@@ -339,6 +442,28 @@ const [accountForm, setAccountForm] = useState({
   notes: "",
 });
 
+// ========================================
+// DAILY ACCOUNT CLOSING STATES
+// ========================================
+
+const getBangladeshToday = () => {
+  return new Date(
+    Date.now() + 6 * 60 * 60 * 1000
+  ).toISOString().slice(0, 10);
+};
+
+const [closingAccountId, setClosingAccountId] = useState("");
+const [closingDate, setClosingDate] = useState(getBangladeshToday());
+
+const [closingPreview, setClosingPreview] = useState(null);
+const [actualClosingBalance, setActualClosingBalance] = useState("");
+const [closingRemarks, setClosingRemarks] = useState("");
+
+const [closingPreviewLoading, setClosingPreviewLoading] = useState(false);
+const [closingSaving, setClosingSaving] = useState(false);
+
+const [closingHistory, setClosingHistory] = useState([]);
+const [closingHistoryLoading, setClosingHistoryLoading] = useState(false);
 // ======================================
 // EXPENSE CATEGORY STATES
 // ======================================
@@ -439,7 +564,10 @@ const [expenseForm, setExpenseForm] = useState({
 
 // ACCOUNT TRANSACTION STATES
 const [transactionSaving, setTransactionSaving] = useState(false);
-
+// TRANSACTION EDIT STATES
+const [editingTransaction, setEditingTransaction] = useState(null);
+const [transactionEditSaving, setTransactionEditSaving] = useState(false);
+const [transactionActionLoading, setTransactionActionLoading] = useState(false);
 const [transactionForm, setTransactionForm] = useState({
   transactionType: "DEPOSIT",
   accountId: "",
@@ -466,6 +594,38 @@ const [transactionPagination, setTransactionPagination] = useState({
   totalPages: 1,
   totalTransactions: 0,
 });
+
+
+// ========================================
+// DAILY CASH BOOK STATES
+// ========================================
+
+const [cashBookLoading, setCashBookLoading] = useState(false);
+
+const [cashBookRows, setCashBookRows] = useState([]);
+
+const [cashBookSummary, setCashBookSummary] = useState({
+  openingBalance: 0,
+  totalIn: 0,
+  totalOut: 0,
+  closingBalance: 0,
+});
+
+const [cashBookFilters, setCashBookFilters] = useState({
+  accountId: "",
+  fromDate: new Date().toISOString().slice(0, 10),
+  toDate: new Date().toISOString().slice(0, 10),
+});
+
+
+const [accountStatementFilters, setAccountStatementFilters] = useState({
+  accountId: "",
+  fromDate: new Date().toISOString().slice(0, 10),
+  toDate: new Date().toISOString().slice(0, 10),
+});
+
+const [accountStatementData, setAccountStatementData] = useState(null);
+const [accountStatementLoading, setAccountStatementLoading] = useState(false);
 
 // GLOBAL KEYBOARD SHORTCUTS
 useEffect(() => {
@@ -1138,7 +1298,8 @@ const requiresCollectionAccount = ["CASH", "BANK", "BKASH"].includes(
 
 const filteredCollectionAccounts = collectionAccounts.filter(
   (account) =>
-    account.accountType === collectionPaymentMethod &&
+    String(account.accountType || "").trim().toUpperCase() ===
+      String(collectionPaymentMethod || "").trim().toUpperCase() &&
     account.isActive !== false
 );
 const [collectionLoading, setCollectionLoading] = useState(false);
@@ -1963,6 +2124,140 @@ async function loadAccounts() {
   }
 }
 
+// ========================================
+// DAILY ACCOUNT CLOSING API FUNCTIONS
+// ========================================
+
+// LOAD CLOSING PREVIEW
+async function loadDailyClosingPreview() {
+  if (!closingAccountId || !closingDate) {
+    toast.error("Account এবং Date নির্বাচন করুন");
+    return;
+  }
+
+  try {
+    setClosingPreviewLoading(true);
+
+    const params = new URLSearchParams({
+      accountId: closingAccountId,
+      closingDate,
+    });
+
+    const result = await apiRequest(
+      `/accounts/daily-closing/preview?${params.toString()}`
+    );
+
+    setClosingPreview(result.data || null);
+
+    if (result.data?.alreadyClosed) {
+      toast.error("এই তারিখের Closing ইতিমধ্যে করা হয়েছে");
+    }
+  } catch (error) {
+    setClosingPreview(null);
+    toast.error(error.message || "Closing Preview load failed");
+  } finally {
+    setClosingPreviewLoading(false);
+  }
+}
+
+
+// SAVE DAILY CLOSING
+async function saveDailyAccountClosing() {
+  if (!closingAccountId || !closingDate || !closingPreview) {
+    toast.error("প্রথমে Closing Preview দেখুন");
+    return;
+  }
+
+  if (closingPreview.alreadyClosed) {
+    toast.error("এই তারিখের Closing ইতিমধ্যে করা হয়েছে");
+    return;
+  }
+
+  if (
+    closingPreview.requiresPhysicalCount &&
+    (
+      actualClosingBalance === "" ||
+      !Number.isFinite(Number(actualClosingBalance)) ||
+      Number(actualClosingBalance) < 0
+    )
+  ) {
+    toast.error("হাতে থাকা প্রকৃত Cash Balance লিখুন");
+    return;
+  }
+
+  try {
+    setClosingSaving(true);
+
+    const result = await apiRequest(
+      "/accounts/daily-closing",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          accountId: closingAccountId,
+          closingDate,
+          actualClosingBalance:
+            closingPreview.requiresPhysicalCount
+              ? Number(actualClosingBalance)
+              : closingPreview.systemClosingBalance,
+          remarks: closingRemarks,
+        }),
+      }
+    );
+
+    toast.success(
+      result.message || "Daily Closing সফলভাবে সম্পন্ন হয়েছে"
+    );
+
+    setClosingPreview((prev) =>
+      prev
+        ? {
+            ...prev,
+            alreadyClosed: true,
+            existingClosing: result.data,
+          }
+        : prev
+    );
+
+    setActualClosingBalance("");
+    setClosingRemarks("");
+
+    loadDailyClosingHistory();
+  } catch (error) {
+    toast.error(error.message || "Closing Save failed");
+  } finally {
+    setClosingSaving(false);
+  }
+}
+
+
+// LOAD CLOSING HISTORY
+async function loadDailyClosingHistory() {
+  try {
+    setClosingHistoryLoading(true);
+
+    const params = new URLSearchParams({
+      page: "1",
+      limit: "50",
+    });
+
+    if (closingAccountId) {
+      params.append("accountId", closingAccountId);
+    }
+
+    const result = await apiRequest(
+      `/accounts/daily-closing/history?${params.toString()}`
+    );
+
+    setClosingHistory(
+      Array.isArray(result.data) ? result.data : []
+    );
+  } catch (error) {
+    toast.error(error.message || "Closing History load failed");
+  } finally {
+    setClosingHistoryLoading(false);
+  }
+}
+
 async function loadSupplierPaymentAccounts() {
   try {
     setSupplierPaymentAccountsLoading(true);
@@ -2026,6 +2321,170 @@ async function loadAccountTransactions(page = 1) {
 }
 
 // ========================================
+// LOAD DAILY CASH BOOK
+// ========================================
+
+async function loadDailyCashBook() {
+  try {
+    setCashBookLoading(true);
+
+    const params = new URLSearchParams({
+      page: "1",
+      limit: "100000",
+    });
+
+    if (cashBookFilters.accountId) {
+      params.append("accountId", cashBookFilters.accountId);
+    }
+
+    const response = await apiRequest(
+      `/accounts/transactions?${params.toString()}`
+    );
+
+    const allTransactions = response.data || [];
+
+    const activeTransactions = allTransactions.filter(
+      (item) => !item.isVoided
+    );
+
+    const fromDate = cashBookFilters.fromDate;
+    const toDate = cashBookFilters.toDate;
+
+    const getDate = (item) => {
+      const rawDate =
+        item.transactionDate ||
+        item.date ||
+        item.createdAt;
+
+      return rawDate ? new Date(rawDate) : null;
+    };
+
+    const getAmount = (item) => Number(item.amount || 0);
+
+    const getDirection = (item) => {
+      if (item.direction) {
+        return item.direction;
+      }
+
+      const type = String(item.transactionType || "").toUpperCase();
+
+      if (
+        type === "DEPOSIT" ||
+        type === "TRANSFER_IN" ||
+        type === "OPENING_BALANCE"
+      ) {
+        return "IN";
+      }
+
+      if (
+        type === "WITHDRAWAL" ||
+        type === "TRANSFER_OUT"
+      ) {
+        return "OUT";
+      }
+
+      return "OUT";
+    };
+
+    const sortedTransactions = [...activeTransactions].sort(
+      (a, b) =>
+        new Date(a.transactionDate || a.createdAt) -
+        new Date(b.transactionDate || b.createdAt)
+    );
+
+    let openingBalance = 0;
+    let totalIn = 0;
+    let totalOut = 0;
+
+    const reportRows = [];
+
+    sortedTransactions.forEach((item) => {
+      const date = getDate(item);
+
+      if (!date || Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      const dateString = date.toISOString().slice(0, 10);
+      const amount = getAmount(item);
+      const direction = getDirection(item);
+
+      if (dateString < fromDate) {
+        openingBalance += direction === "IN" ? amount : -amount;
+        return;
+      }
+
+      if (dateString > toDate) {
+        return;
+      }
+
+      if (direction === "IN") {
+        totalIn += amount;
+      } else {
+        totalOut += amount;
+      }
+
+      reportRows.push(item);
+    });
+
+    const closingBalance =
+      openingBalance + totalIn - totalOut;
+
+    setCashBookRows(reportRows);
+
+    setCashBookSummary({
+      openingBalance,
+      totalIn,
+      totalOut,
+      closingBalance,
+    });
+
+  } catch (error) {
+    console.error("Daily Cash Book Error:", error);
+    toast.error(error.message || "Daily Cash Book load failed");
+  } finally {
+    setCashBookLoading(false);
+  }
+}
+
+async function loadAccountStatement() {
+  try {
+    const { accountId, fromDate, toDate } = accountStatementFilters;
+
+    if (!accountId) {
+      toast.error("একটি Account নির্বাচন করুন");
+      return;
+    }
+
+    if (!fromDate || !toDate || fromDate > toDate) {
+      toast.error("সঠিক From Date ও To Date নির্বাচন করুন");
+      return;
+    }
+
+    setAccountStatementLoading(true);
+
+    const params = new URLSearchParams({
+      accountId,
+      fromDate,
+      toDate,
+    });
+
+    const response = await apiRequest(
+      `/accounts/statement?${params.toString()}`
+    );
+
+    setAccountStatementData(response.data || null);
+  } catch (error) {
+    console.error("Account Statement Error:", error);
+    setAccountStatementData(null);
+    toast.error(error.message || "Account Statement load failed");
+  } finally {
+    setAccountStatementLoading(false);
+  }
+}
+
+
+// ========================================
 // ACCOUNT TRANSACTION API
 // ========================================
 
@@ -2082,10 +2541,170 @@ async function saveAccountTransaction() {
     });
 
     await loadAccounts();
+    await loadAccountTransactions(1);
   } catch (error) {
     toast.error(error.message || "Transaction সম্পন্ন হয়নি");
   } finally {
     setTransactionSaving(false);
+  }
+}
+
+
+
+function startEditAccountTransaction(transaction) {
+  if (
+    !["DEPOSIT", "WITHDRAWAL", "TRANSFER_IN", "TRANSFER_OUT"].includes(
+      transaction.transactionType
+    )
+  ) {
+    toast.error("এই Transaction Edit করা যাবে না");
+    return;
+  }
+
+  const isTransfer =
+    transaction.transactionType === "TRANSFER_IN" ||
+    transaction.transactionType === "TRANSFER_OUT";
+
+  setEditingTransaction({
+    id: transaction._id,
+    transactionType: isTransfer
+      ? "TRANSFER"
+      : transaction.transactionType,
+    accountId:
+      transaction.transactionType === "TRANSFER_IN"
+        ? transaction.relatedAccountId?._id
+        : transaction.accountId?._id || transaction.accountId,
+    relatedAccountId: isTransfer
+      ? transaction.transactionType === "TRANSFER_IN"
+        ? transaction.accountId?._id
+        : transaction.relatedAccountId?._id
+      : "",
+    amount: String(transaction.amount || ""),
+    transactionDate: transaction.transactionDate
+      ? new Date(transaction.transactionDate).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
+    reference: transaction.reference || "",
+    description: transaction.description || "",
+    reason: "",
+  });
+}
+
+async function updateAccountTransaction() {
+  if (!editingTransaction) return;
+
+  if (!editingTransaction.accountId) {
+    toast.error("Account নির্বাচন করুন");
+    return;
+  }
+
+  if (
+    editingTransaction.transactionType === "TRANSFER" &&
+    !editingTransaction.relatedAccountId
+  ) {
+    toast.error("Destination Account নির্বাচন করুন");
+    return;
+  }
+
+  if (
+    editingTransaction.transactionType === "TRANSFER" &&
+    editingTransaction.accountId === editingTransaction.relatedAccountId
+  ) {
+    toast.error("একই Account-এ Transfer করা যাবে না");
+    return;
+  }
+
+  const amount = Number(editingTransaction.amount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast.error("সঠিক Amount লিখুন");
+    return;
+  }
+
+  if (!editingTransaction.reason?.trim()) {
+    toast.error("Edit করার কারণ লিখুন");
+    return;
+  }
+
+  try {
+    setTransactionEditSaving(true);
+
+    await apiRequest(
+      `/accounts/transactions/${editingTransaction.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...editingTransaction,
+          amount,
+          reason: editingTransaction.reason.trim(),
+        }),
+      }
+    );
+
+    toast.success("Transaction সফলভাবে Update হয়েছে");
+
+    setEditingTransaction(null);
+
+    await Promise.all([
+      loadAccounts(),
+      loadAccountTransactions(transactionPagination.currentPage || 1),
+    ]);
+  } catch (error) {
+    toast.error(error.message || "Transaction Update হয়নি");
+  } finally {
+    setTransactionEditSaving(false);
+  }
+}
+
+async function voidAccountTransaction(transaction) {
+  if (
+    !["DEPOSIT", "WITHDRAWAL", "TRANSFER_IN", "TRANSFER_OUT"].includes(
+      transaction.transactionType
+    )
+  ) {
+    toast.error("এই Transaction বাতিল করা যাবে না");
+    return;
+  }
+
+  const reason = window.prompt(
+    "Transaction বাতিল করার কারণ লিখুন:"
+  );
+
+  if (reason === null) return;
+
+  if (!reason.trim()) {
+    toast.error("বাতিল করার কারণ লিখতে হবে");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "আপনি কি নিশ্চিত এই Transaction বাতিল করতে চান? Transfer হলে দুই পাশের Entry বাতিল হবে।"
+  );
+
+  if (!confirmed) return;
+
+  try {
+    setTransactionActionLoading(true);
+
+    await apiRequest(
+      `/accounts/transactions/${transaction._id}/void`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          reason: reason.trim(),
+        }),
+      }
+    );
+
+    toast.success("Transaction বাতিল করা হয়েছে");
+
+    await Promise.all([
+      loadAccounts(),
+      loadAccountTransactions(transactionPagination.currentPage || 1),
+    ]);
+  } catch (error) {
+    toast.error(error.message || "Transaction বাতিল করা যায়নি");
+  } finally {
+    setTransactionActionLoading(false);
   }
 }
 
@@ -2514,19 +3133,30 @@ useEffect(() => {
     loadDailyStockCheck();
   }
 }, [activePage]);
+
 useEffect(() => {
   if (
     activePage === "Add Account" ||
     activePage === "Account Transactions" ||
-    activePage === "Transaction History"
+    activePage === "Transaction History" ||
+   activePage === "Cash Book Report" ||
+activePage === "Daily Account Closing"
+    
   ) {
     loadAccounts();
   }
+if (
+  activePage === "Transaction History" ||
+  activePage === "Account Transactions"
+) {
+  loadAccountTransactions(1);
+}
 
-  if (activePage === "Transaction History") {
-    loadAccountTransactions(1);
+  if (activePage === "Cash Book Report") {
+    loadDailyCashBook();
   }
 }, [activePage]);
+
 
 useEffect(() => {
   if (activePage === "Date-wise Expense Report") {
@@ -2627,9 +3257,18 @@ async function loadSalesCollectionAccounts() {
     setCollectionAccountsLoading(true);
 
     const result = await apiRequest("/accounts");
+    const accountList = Array.isArray(result)
+      ? result
+      : Array.isArray(result.data)
+      ? result.data
+      : Array.isArray(result.accounts)
+      ? result.accounts
+      : Array.isArray(result.data?.accounts)
+      ? result.data.accounts
+      : [];
 
-    const activeAccounts = (result.data || []).filter(
-      (account) => account.isActive !== false
+    const activeAccounts = accountList.filter(
+      (account) => account && account.isActive !== false
     );
 
     setCollectionAccounts(activeAccounts);
@@ -5144,9 +5783,18 @@ async function loadCustomerCollectionAccounts() {
     setCustomerCollectionAccountsLoading(true);
 
     const result = await apiRequest("/accounts");
+    const accountList = Array.isArray(result)
+      ? result
+      : Array.isArray(result.data)
+      ? result.data
+      : Array.isArray(result.accounts)
+      ? result.accounts
+      : Array.isArray(result.data?.accounts)
+      ? result.data.accounts
+      : [];
 
-    const activeAccounts = (result.data || []).filter(
-      (account) => account.isActive !== false
+    const activeAccounts = accountList.filter(
+      (account) => account && account.isActive !== false
     );
 
     setCustomerCollectionAccounts(activeAccounts);
@@ -5247,6 +5895,14 @@ async function submitCustomerPayment(e) {
 
   if (!amount || amount <= 0) {
     toast.error("সঠিক Payment Amount দিন");
+    return;
+  }
+
+  if (
+    ["CASH", "BANK", "BKASH"].includes(customerPaymentForm.paymentMethod) &&
+    !customerPaymentForm.accountId
+  ) {
+    toast.error("প্রথমে একটি Active Account নির্বাচন করুন");
     return;
   }
 
@@ -6825,6 +7481,7 @@ function renderCustomerPaymentModal() {
                       setCustomerPaymentForm({
                         ...customerPaymentForm,
                         paymentMethod: e.target.value,
+                        accountId: "",
                       })
                     }
                   >
@@ -6858,55 +7515,64 @@ function renderCustomerPaymentModal() {
               </div>
 
 
-{/* SELECT ACCOUNT FOR CUSTOMER COLLECTION */}
-<label style={labelStyle}>
-  টাকা কোন Account-এ জমা হবে?
-</label>
+{["CASH", "BANK", "BKASH"].includes(customerPaymentForm.paymentMethod) && (
+  <>
+    {/* SELECT ACCOUNT FOR CUSTOMER COLLECTION */}
+    <label style={labelStyle}>
+      টাকা কোন Account-এ জমা হবে?
+    </label>
 
-<select
-  required
-  style={inputStyle}
-  value={customerPaymentEditForm.accountId}
-  onChange={(e) =>
-    setCustomerPaymentEditForm((prev) => ({
-      ...prev,
-      accountId: e.target.value,
-    }))
-  }
->
-  <option value="">
-    Select {customerPaymentEditForm.paymentMethod} Account
-  </option>
-
-  {customerCollectionAccounts
-    .filter(
-      (account) =>
-        account.accountType ===
-          customerPaymentEditForm.paymentMethod &&
-        account.isActive !== false
-    )
-    .map((account) => (
-      <option key={account._id} value={account._id}>
-        {account.accountName} ({account.accountType})
+    <select
+      required
+      disabled={customerCollectionAccountsLoading}
+      style={inputStyle}
+      value={customerPaymentForm.accountId}
+      onChange={(e) =>
+        setCustomerPaymentForm((prev) => ({
+          ...prev,
+          accountId: e.target.value,
+        }))
+      }
+    >
+      <option value="">
+        {customerCollectionAccountsLoading
+          ? "Loading Accounts..."
+          : `Select ${customerPaymentForm.paymentMethod} Account`}
       </option>
-    ))}
-</select>
 
-{customerCollectionAccountsLoading && (
-  <p style={{ fontSize: 12, color: "#64748b" }}>
-    Account লোড হচ্ছে...
-  </p>
+      {customerCollectionAccounts
+        .filter(
+          (account) =>
+            String(account.accountType || "").trim().toUpperCase() ===
+              String(customerPaymentForm.paymentMethod || "").trim().toUpperCase() &&
+            account.isActive !== false
+        )
+        .map((account) => (
+          <option key={account._id} value={account._id}>
+            {account.accountName} ({account.accountType})
+          </option>
+        ))}
+    </select>
+
+    {customerCollectionAccountsLoading && (
+      <p style={{ fontSize: 12, color: "#64748b" }}>
+        Account লোড হচ্ছে...
+      </p>
+    )}
+
+    {!customerCollectionAccountsLoading &&
+      customerCollectionAccounts.filter(
+        (account) =>
+          String(account.accountType || "").trim().toUpperCase() ===
+            String(customerPaymentForm.paymentMethod || "").trim().toUpperCase() &&
+          account.isActive !== false
+      ).length === 0 && (
+        <p style={{ fontSize: 12, color: "#dc2626" }}>
+          এই Payment Method-এর কোনো Active Account পাওয়া যায়নি। Account Management থেকে Account তৈরি করুন।
+        </p>
+      )}
+  </>
 )}
-
-{!customerCollectionAccountsLoading &&
-  customerCollectionAccounts.filter(
-    (account) =>
-      account.accountType === customerPaymentForm.paymentMethod
-  ).length === 0 && (
-    <p style={{ fontSize: 12, color: "#dc2626" }}>
-      এই Payment Method-এর কোনো Active Account পাওয়া যায়নি।
-    </p>
-  )}
 
 
               {/* AUTO TRANSACTION ID */}
@@ -11251,22 +11917,52 @@ const filteredCustomers = customers.filter((item) =>
   };
 
   function renderDashboard() {
+    const live = dashboardLiveData || {};
+    const overall = live.salesSummary?.overall || {};
+    const profitLoss = live.financialSummary?.profitLoss || {};
+    const position = live.financialSummary?.position || {};
+
+    const money = (value) =>
+      "৳ " + Number(value || 0).toLocaleString("en-BD", { maximumFractionDigits: 2 });
+
+    const stats = [
+      { title: "Total Sales", value: money(overall.netSales ?? overall.totalSales), icon: ShoppingCart, color: "orange", change: "Live data" },
+      { title: "Own Sales Profit", value: money(overall.ownProfit), icon: TrendingUp, color: "green", change: "Live data" },
+      { title: "Total Products", value: Number(live.products?.length || 0).toLocaleString("en-BD"), icon: Package, color: "blue", change: "Active records" },
+      { title: "Total Customers", value: Number(live.customers?.length || 0).toLocaleString("en-BD"), icon: Users, color: "purple", change: "Customer records" }
+    ];
+
+    const lowStockProducts = (live.products || []).filter((product) =>
+      product.isActive !== false &&
+      Number(product.minimumStockKg || 0) > 0 &&
+      Number(product.currentStockKg || 0) <= Number(product.minimumStockKg || 0)
+    ).slice(0, 5);
+
+    const recentInvoices = live.invoices || [];
+
     return (
       <>
         <div className="page-heading">
           <div>
             <h2>Dashboard Overview</h2>
-            <p>Monitor your business performance at a glance.</p>
+            <p>Monitor your real business performance at a glance.</p>
           </div>
           <div className="heading-actions">
-            <button className="date-button">
-              <CalendarDays size={17} /> This Year <ChevronDown size={15} />
-            </button>
+            <span className="date-button"><CalendarDays size={17} /> Last 12 Months</span>
             <button className="primary-button" onClick={() => setActivePage("Products")}>
               <Plus size={18} /> Create New
             </button>
           </div>
         </div>
+
+        {dashboardLiveLoading && (
+          <div className="panel" style={{ padding: 14, marginBottom: 16 }}>Loading live dashboard data...</div>
+        )}
+        {dashboardLiveError && (
+          <div className="panel" style={{ padding: 14, marginBottom: 16, color: "#b45309" }}>
+            কিছু Dashboard data load হয়নি: {dashboardLiveError}
+          </div>
+        )}
 
         <section className="stats-grid">
           {stats.map((stat) => {
@@ -11274,18 +11970,17 @@ const filteredCustomers = customers.filter((item) =>
             return (
               <div className="stat-card" key={stat.title}>
                 <div className="stat-top">
-                  <div className={`stat-icon ${stat.color}`}>
-                    <Icon size={21} />
-                  </div>
-                  <button className="more-button"><MoreHorizontal size={20} /></button>
+                  <div className={"stat-icon " + stat.color}><Icon size={21} /></div>
+                  <button className="more-button" onClick={() => setActivePage(
+                    stat.title === "Total Products" ? "Products" :
+                    stat.title === "Total Customers" ? "Customers" : "Sales Invoice History"
+                  )}><MoreHorizontal size={20} /></button>
                 </div>
                 <p className="stat-title">{stat.title}</p>
                 <h3>{stat.value}</h3>
                 <div className="stat-footer">
-                  <span className="positive-change">
-                    <TrendingUp size={14} /> {stat.change}
-                  </span>
-                  <span>vs last month</span>
+                  <span className="positive-change"><TrendingUp size={14} /> {stat.change}</span>
+                  <span>Live API</span>
                 </div>
               </div>
             );
@@ -11295,35 +11990,24 @@ const filteredCustomers = customers.filter((item) =>
         <section className="analytics-grid">
           <div className="panel chart-panel">
             <div className="panel-header">
-              <div>
-                <h3>Sales & Purchase Analytics</h3>
-                <p>Monthly business performance</p>
-              </div>
-              <button className="date-button">2026 <ChevronDown size={15} /></button>
+              <div><h3>Monthly Sales Analytics</h3><p>Net sales for the last 12 months</p></div>
+              <span className="date-button">Last 12 Months</span>
             </div>
-            <div className="chart-legend">
-              <span><i className="legend-sales" /> Sales</span>
-              <span><i className="legend-purchase" /> Purchase</span>
-            </div>
+            <div className="chart-legend"><span><i className="legend-sales" /> Net Sales</span></div>
             <div className="chart-container">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
+                <AreaChart data={live.monthlySales || []}>
                   <defs>
                     <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#f47b20" stopOpacity={0.2} />
                       <stop offset="95%" stopColor="#f47b20" stopOpacity={0} />
                     </linearGradient>
-                    <linearGradient id="purchaseFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6098e8" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#6098e8" stopOpacity={0} />
-                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf0f4" />
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#8993a4", fontSize: 12 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: "#8993a4", fontSize: 12 }} />
-                  <Tooltip formatter={(value) => `৳ ${value.toLocaleString()}`} />
-                  <Area type="monotone" dataKey="sales" stroke="#f47b20" strokeWidth={2.5} fill="url(#salesFill)" />
-                  <Area type="monotone" dataKey="purchase" stroke="#6098e8" strokeWidth={2.5} fill="url(#purchaseFill)" />
+                  <Tooltip formatter={(value) => money(value)} />
+                  <Area type="monotone" dataKey="sales" name="Net Sales" stroke="#f47b20" strokeWidth={2.5} fill="url(#salesFill)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -11331,23 +12015,23 @@ const filteredCustomers = customers.filter((item) =>
 
           <div className="panel summary-panel">
             <div className="panel-header">
-              <div><h3>Business Summary</h3><p>Financial overview</p></div>
-              <button className="more-button"><MoreHorizontal size={20} /></button>
+              <div><h3>Business Summary</h3><p>Financial position and profit</p></div>
+              <button className="more-button" onClick={() => setActivePage("Financial Summary")}><MoreHorizontal size={20} /></button>
             </div>
             <div className="summary-item">
-              <div className="summary-icon green"><TrendingUp size={19} /></div>
-              <div className="summary-details"><span>Total Revenue</span><strong>৳ 4,85,250</strong></div>
+              <div className="summary-icon green"><Wallet size={19} /></div>
+              <div className="summary-details"><span>Cash & Bank</span><strong>{money(position.cashAndBank)}</strong></div>
             </div>
             <div className="summary-item">
-              <div className="summary-icon blue"><ShoppingBag size={19} /></div>
-              <div className="summary-details"><span>Total Expenses</span><strong>৳ 2,45,800</strong></div>
+              <div className="summary-icon blue"><Users size={19} /></div>
+              <div className="summary-details"><span>Customer Receivable</span><strong>{money(position.customerReceivable)}</strong></div>
             </div>
             <div className="summary-item">
-              <div className="summary-icon orange"><Wallet size={19} /></div>
-              <div className="summary-details"><span>Net Profit</span><strong className="profit-value">৳ 2,39,450</strong></div>
+              <div className="summary-icon orange"><ShoppingBag size={19} /></div>
+              <div className="summary-details"><span>Supplier Payable</span><strong>{money(position.supplierPayable)}</strong></div>
             </div>
             <div className="profit-box">
-              <div><span>Profit Growth</span><strong>+18.6%</strong></div>
+              <div><span>Net Profit</span><strong>{money(profitLoss.netProfit)}</strong></div>
               <TrendingUp size={23} />
             </div>
           </div>
@@ -11356,24 +12040,32 @@ const filteredCustomers = customers.filter((item) =>
         <section className="bottom-grid">
           <div className="panel transactions-panel">
             <div className="panel-header">
-              <div><h3>Recent Transactions</h3><p>Latest sales and invoices</p></div>
-              <button className="text-button">View All <ArrowUpRight size={15} /></button>
+              <div><h3>Recent Transactions</h3><p>Latest real sales invoices</p></div>
+              <button className="text-button" onClick={() => setActivePage("Sales Invoice History")}>
+                View All <ArrowUpRight size={15} />
+              </button>
             </div>
             <div className="table-wrapper">
               <table>
-                <thead>
-                  <tr><th>INVOICE</th><th>CUSTOMER</th><th>DATE</th><th>AMOUNT</th><th>STATUS</th></tr>
-                </thead>
+                <thead><tr><th>INVOICE</th><th>CUSTOMER</th><th>DATE</th><th>AMOUNT</th><th>STATUS</th></tr></thead>
                 <tbody>
-                  {transactions.map((item) => (
-                    <tr key={item.id}>
-                      <td className="invoice-id">{item.id}</td>
-                      <td>{item.customer}</td>
-                      <td>{item.date}</td>
-                      <td className="amount">{item.amount}</td>
-                      <td><span className={`status ${item.status.toLowerCase()}`}>{item.status}</span></td>
-                    </tr>
-                  ))}
+                  {recentInvoices.length ? recentInvoices.map((item, index) => {
+                    const status = String(item.paymentStatus || item.payment_status || item.status || "Recorded");
+                    const date = item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString("en-GB") : "-";
+                    return (
+                      <tr key={item._id || item.invoiceNumber || index}>
+                        <td className="invoice-id">{item.invoiceNumber || item._id || "-"}</td>
+                        <td>{item.customerName || item.customerId?.customerName || "Walk-in Customer"}</td>
+                        <td>{date}</td>
+                        <td className="amount">{money(item.netSalesAmount ?? item.grandTotal ?? item.totalAmount)}</td>
+                        <td><span className={"status " + status.toLowerCase().replace(/\s+/g, "-")}>{status}</span></td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr><td colSpan="5" style={{ textAlign: "center", padding: 24 }}>
+                      {dashboardLiveLoading ? "Loading invoices..." : "No sales invoices found"}
+                    </td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -11384,16 +12076,22 @@ const filteredCustomers = customers.filter((item) =>
               <div><h3>Stock Alerts</h3><p>Products running low</p></div>
               <CircleAlert size={20} color="#f47b20" />
             </div>
-            <div className="stock-alert">
-              <div className="product-mini">O</div>
-              <div className="stock-info"><strong>Onion</strong><span>Wholesale product</span></div>
-              <span className="stock-qty">Low</span>
-            </div>
-            <div className="stock-alert">
-              <div className="product-mini blue-mini">P</div>
-              <div className="stock-info"><strong>Potato</strong><span>Wholesale product</span></div>
-              <span className="stock-qty">Low</span>
-            </div>
+            {lowStockProducts.length ? lowStockProducts.map((product, index) => (
+              <div className="stock-alert" key={product._id || index}>
+                <div className={"product-mini " + (index % 2 ? "blue-mini" : "")}>
+                  {String(product.productName || "?").charAt(0).toUpperCase()}
+                </div>
+                <div className="stock-info">
+                  <strong>{product.productName || "Unnamed Product"}</strong>
+                  <span>Current: {Number(product.currentStockKg || 0).toLocaleString("en-BD")} KG | Minimum: {Number(product.minimumStockKg || 0).toLocaleString("en-BD")} KG</span>
+                </div>
+                <span className="stock-qty">Low</span>
+              </div>
+            )) : (
+              <div style={{ padding: 18, textAlign: "center", color: "#64748b" }}>
+                {dashboardLiveLoading ? "Checking stock..." : "No low stock products"}
+              </div>
+            )}
             <button className="view-stock-button" onClick={() => setActivePage("Products")}>
               Manage Inventory <ArrowUpRight size={16} />
             </button>
@@ -11403,7 +12101,6 @@ const filteredCustomers = customers.filter((item) =>
     );
   }
 
- 
 function renderInventoryDashboard() {
   return (
     <>
@@ -12296,7 +12993,7 @@ function renderCurrentStockReport() {
               fontWeight: 600,
             }}
           >
-            ● Live Stock
+            â— Live Stock
           </span>
 
           <button
@@ -14299,8 +14996,8 @@ function renderDailyStockChecking() {
             {dailyStockConfirmed
               ? "✓ Confirmed"
               : dailyStockSaved
-              ? "● Saved"
-              : "● Not Saved"}
+              ? "â— Saved"
+              : "â— Not Saved"}
           </div>
         </div>
       </div>
@@ -18607,7 +19304,7 @@ return (
               title: "Today's Weight KG",
               value: Number(salesDashboard.today.weightKg || 0).toLocaleString("en-BD"),
               color: "#7c3aed",
-              icon: "⚖️",
+              icon: "âš–ï¸",
             },
             {
               title: "Today's OWN Profit",
@@ -18625,7 +19322,7 @@ return (
               title: "Daily Sale Due",
               value: `৳ ${Number(salesDashboard.today.saleDue || 0).toLocaleString("en-BD")}`,
               color: "#dc2626",
-              icon: "⚠️",
+              icon: "âš ï¸",
             },
           ].map((item) => (
             <div key={item.title} data-daily-card="true" style={{
@@ -18696,7 +19393,7 @@ return (
               title: "Net Weight KG",
               value: Number(salesDashboard.overall.netWeightKg || 0).toLocaleString("en-BD"),
               color: "#7c3aed",
-              icon: "⚖️",
+              icon: "âš–ï¸",
             },
             {
               title: "Net Sales",
@@ -18720,7 +19417,7 @@ return (
               title: "Current Due",
               value: `৳ ${Number(salesDashboard.overall.currentDue || 0).toLocaleString("en-BD")}`,
               color: "#dc2626",
-              icon: "⚠️",
+              icon: "âš ï¸",
             },
           ].map((item) => (
             <div key={item.title} style={{
@@ -21533,6 +22230,85 @@ async function saveAccount() {
     setAccountSaving(false);
   }
 }
+// ========================================
+// UPDATE ACCOUNT
+// ========================================
+async function updateAccount() {
+  if (!accountForm.accountName.trim()) {
+    toast.error("Account Name দিতে হবে");
+    return;
+  }
+
+  if (
+    accountForm.accountType === "BANK" &&
+    !accountForm.bankName.trim()
+  ) {
+    toast.error("Bank Name দিতে হবে");
+    return;
+  }
+
+  if (!accountEditingId) {
+    toast.error("Account নির্বাচন করা হয়নি");
+    return;
+  }
+
+const originalOpeningBalance = Number(
+  accounts.find((a) => a._id === accountEditingId)
+    ?.openingBalance || 0
+);
+
+const newOpeningBalance = Number(
+  accountForm.openingBalance || 0
+);
+
+if (
+  newOpeningBalance !== originalOpeningBalance &&
+  !accountAdjustmentReason.trim()
+) {
+  toast.error("Opening Balance পরিবর্তনের কারণ লিখুন");
+  return;
+}
+
+  try {
+    setAccountSaving(true);
+
+    await apiRequest(`/accounts/${accountEditingId}`, {
+      method: "PUT",
+body: JSON.stringify({
+  accountName: accountForm.accountName,
+  bankName: accountForm.bankName,
+  accountNumber: accountForm.accountNumber,
+  branchName: accountForm.branchName,
+  notes: accountForm.notes,
+  openingBalance: Number(accountForm.openingBalance || 0),
+  adjustmentReason: accountAdjustmentReason,
+}),
+    });
+
+    toast.success("Account সফলভাবে Update হয়েছে");
+
+    setAccountEditingId("");
+
+    setAccountForm({
+      accountName: "",
+      accountType: "CASH",
+      bankName: "",
+      accountNumber: "",
+      branchName: "",
+      openingBalance: "0",
+      openingBalanceDate: new Date().toISOString().slice(0, 10),
+      notes: "",
+    });
+setAccountAdjustmentReason("");
+
+    await loadAccounts();
+  } catch (error) {
+    toast.error(error.message || "Account Update করা যায়নি");
+  } finally {
+    setAccountSaving(false);
+  }
+}
+
 
 
 function renderAccountTransactions() {
@@ -21554,169 +22330,1812 @@ function renderAccountTransactions() {
     color: "#475569",
     marginBottom: 6,
   };
+const formTransactions = accountTransactions.filter(
+  (transaction) => transaction.source === "MANUAL"
+);
 
   return (
-    <div className="panel" style={{ padding: 22 }}>
-      <h2 style={{ margin: "0 0 8px" }}>Account Transactions</h2>
-      <p style={{ color: "#7b8494", margin: "0 0 20px" }}>
-        Cash, Bank এবং bKash Account-এ টাকা জমা, উত্তোলন ও Transfer
-      </p>
+    <div style={{ display: "grid", gap: 20 }}>
+      <div className="panel" style={{ padding: 22 }}>
+        <h2 style={{ margin: "0 0 8px" }}>Account Transactions</h2>
+        <p style={{ color: "#7b8494", margin: "0 0 20px" }}>
+          Cash, Bank এবং bKash Account-এ টাকা জমা, উত্তোলন ও Transfer
+        </p>
 
-      <div
-        style={{
+        <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           gap: 16,
-        }}
-      >
-        <div>
-          <label style={labelStyle}>Transaction Type *</label>
-          <select
-            style={fieldStyle}
-            value={transactionForm.transactionType}
-            onChange={(e) =>
-              setTransactionForm((prev) => ({
+        }}>
+          <div>
+            <label style={labelStyle}>Transaction Type *</label>
+            <select
+              style={fieldStyle}
+              value={transactionForm.transactionType}
+              onChange={(e) => setTransactionForm(prev => ({
                 ...prev,
                 transactionType: e.target.value,
                 relatedAccountId: "",
+              }))}
+            >
+              <option value="DEPOSIT">Deposit (জমা)</option>
+              <option value="WITHDRAWAL">Withdraw (উত্তোলন)</option>
+              <option value="TRANSFER">Transfer (স্থানান্তর)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>
+              {transactionForm.transactionType === "DEPOSIT"
+                ? "Deposit To Account *"
+                : "From Account *"}
+            </label>
+
+            
+            <select
+              style={fieldStyle}
+              value={transactionForm.accountId}
+              onChange={(e) => setTransactionForm(prev => ({
+                ...prev,
+                accountId: e.target.value,
+              }))}
+            >
+              <option value="">Select Account</option>
+              {accounts.filter(a => a.isActive !== false).map(account => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName} ({account.accountType})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {transactionForm.transactionType === "TRANSFER" && (
+            <div>
+              <label style={labelStyle}>To Account *</label>
+              <select
+                style={fieldStyle}
+                value={transactionForm.relatedAccountId}
+                onChange={(e) => setTransactionForm(prev => ({
+                  ...prev,
+                  relatedAccountId: e.target.value,
+                }))}
+              >
+                <option value="">Select Destination Account</option>
+                {accounts.filter(a =>
+                  a.isActive !== false &&
+                  a._id !== transactionForm.accountId
+                ).map(account => (
+                  <option key={account._id} value={account._id}>
+                    {account.accountName} ({account.accountType})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label style={labelStyle}>Amount (৳) *</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              style={fieldStyle}
+              placeholder="Enter amount"
+              value={transactionForm.amount}
+              onChange={(e) => setTransactionForm(prev => ({
+                ...prev,
+                amount: e.target.value,
+              }))}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Transaction Date</label>
+            <input
+              type="date"
+              style={fieldStyle}
+              value={transactionForm.transactionDate}
+              onChange={(e) => setTransactionForm(prev => ({
+                ...prev,
+                transactionDate: e.target.value,
+              }))}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Reference</label>
+            <input
+              style={fieldStyle}
+              placeholder="Optional reference"
+              value={transactionForm.reference}
+              onChange={(e) => setTransactionForm(prev => ({
+                ...prev,
+                reference: e.target.value,
+              }))}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Description</label>
+            <input
+              style={fieldStyle}
+              placeholder="Transaction details"
+              value={transactionForm.description}
+              onChange={(e) => setTransactionForm(prev => ({
+                ...prev,
+                description: e.target.value,
+              }))}
+            />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <button
+            className="primary-button"
+            onClick={saveAccountTransaction}
+            disabled={transactionSaving}
+          >
+            {transactionSaving ? "Processing..." : "Save Transaction"}
+          </button>
+        </div>
+      </div>
+
+      {/* ACCOUNT TRANSACTIONS LIST */}
+  
+{/* EDIT TRANSACTION FORM */}
+{editingTransaction && (
+  <div className="panel" style={{ padding: 20 }}>
+    <h3 style={{ marginTop: 0 }}>Edit Transaction</h3>
+
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+      gap: 14
+    }}>
+      <div>
+        <label style={labelStyle}>Amount (৳)</label>
+        <input
+          type="number"
+          style={fieldStyle}
+          value={editingTransaction.amount}
+          onChange={(e) =>
+            setEditingTransaction(prev => ({
+              ...prev,
+              amount: e.target.value
+            }))
+          }
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Transaction Date</label>
+        <input
+          type="date"
+          style={fieldStyle}
+          value={editingTransaction.transactionDate}
+          onChange={(e) =>
+            setEditingTransaction(prev => ({
+              ...prev,
+              transactionDate: e.target.value
+            }))
+          }
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Reference</label>
+        <input
+          style={fieldStyle}
+          value={editingTransaction.reference || ""}
+          onChange={(e) =>
+            setEditingTransaction(prev => ({
+              ...prev,
+              reference: e.target.value
+            }))
+          }
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Description</label>
+        <input
+          style={fieldStyle}
+          value={editingTransaction.description || ""}
+          onChange={(e) =>
+            setEditingTransaction(prev => ({
+              ...prev,
+              description: e.target.value
+            }))
+          }
+        />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Edit Reason *</label>
+        <input
+          style={fieldStyle}
+          placeholder="কেন পরিবর্তন করছেন?"
+          value={editingTransaction.reason || ""}
+          onChange={(e) =>
+            setEditingTransaction(prev => ({
+              ...prev,
+              reason: e.target.value
+            }))
+          }
+        />
+      </div>
+    </div>
+
+    <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+      <button
+        className="primary-button"
+        onClick={updateAccountTransaction}
+        disabled={transactionEditSaving}
+      >
+        {transactionEditSaving ? "Updating..." : "Update Transaction"}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setEditingTransaction(null)}
+        disabled={transactionEditSaving}
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+)}
+
+
+
+{/* RECENT ACCOUNT TRANSACTIONS */}
+<div className="panel" style={{ padding: 18 }}>
+  <h3 style={{ margin: "0 0 14px", fontSize: 16 }}>
+    Recent Transactions
+  </h3>
+
+  {formTransactions.length === 0 ? (
+    <p style={{ color: "#94a3b8", textAlign: "center", padding: 12 }}>
+      এখনো কোনো Transaction যোগ করা হয়নি
+    </p>
+  ) : (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
+            {["Date", "Account", "Type", "Amount", "Action"].map(item => (
+              <th key={item} style={{ padding: 10 }}>{item}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {formTransactions.slice(0, 10).map(transaction => (
+            <tr key={transaction._id}>
+              <td style={{ padding: 10 }}>
+                {transaction.transactionDate
+                  ? new Date(transaction.transactionDate).toLocaleDateString()
+                  : "-"}
+              </td>
+              <td style={{ padding: 10 }}>
+                {transaction.accountId?.accountName || "-"}
+              </td>
+              <td style={{ padding: 10 }}>
+                {transaction.transactionType === "DEPOSIT"
+                  ? "Deposit"
+                  : transaction.transactionType === "WITHDRAWAL"
+                  ? "Withdraw"
+                  : "Transfer"}
+              </td>
+              <td style={{ padding: 10, fontWeight: 600 }}>
+                ৳{Number(transaction.amount || 0).toLocaleString()}
+              </td>
+              <td style={{ padding: 10, whiteSpace: "nowrap" }}>
+                <button
+                  type="button"
+                  onClick={() => startEditAccountTransaction(transaction)}
+                  disabled={transactionActionLoading}
+                >
+                  Edit
+                </button>
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => voidAccountTransaction(transaction)}
+                  disabled={transactionActionLoading}
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</div>
+
+    </div>
+  );
+}
+
+// ========================================
+// DAILY ACCOUNT CLOSING UI
+// ========================================
+
+function renderDailyAccountClosing() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 6,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#475569",
+    marginBottom: 6,
+  };
+
+  const activeAccounts = accounts.filter(
+    (account) => account.isActive !== false
+  );
+
+  const preview = closingPreview;
+  const isCash = preview?.requiresPhysicalCount === true;
+
+  const systemBalance = Number(
+    preview?.systemClosingBalance || 0
+  );
+
+  const actualBalance = isCash
+    ? Number(actualClosingBalance || 0)
+    : systemBalance;
+
+  const difference = actualBalance - systemBalance;
+
+  const closingStatus =
+    difference === 0
+      ? "MATCHED"
+      : difference < 0
+      ? "SHORT"
+      : "EXCESS";
+
+  const statusColor =
+    closingStatus === "MATCHED"
+      ? "#16a34a"
+      : closingStatus === "SHORT"
+      ? "#dc2626"
+      : "#2563eb";
+
+  const money = (value) =>
+    `৳ ${Number(value || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+
+      {/* PAGE HEADER */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h2 style={{ margin: 0 }}>
+              Daily Account Closing
+            </h2>
+
+            <p style={{ color: "#7b8494", margin: "6px 0 0" }}>
+              প্রতিদিনের Cash, Bank এবং bKash Account Closing
+            </p>
+          </div>
+
+          <button
+            className="primary-button"
+            onClick={loadDailyClosingHistory}
+            disabled={closingHistoryLoading}
+          >
+            {closingHistoryLoading ? "Loading..." : "Refresh History"}
+          </button>
+        </div>
+      </div>
+
+      {/* CLOSING SELECTION */}
+      <div className="panel" style={{ padding: 22 }}>
+        <h3 style={{ margin: "0 0 18px", fontSize: 16 }}>
+          Select Account & Date
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Account *</label>
+
+            <select
+              style={fieldStyle}
+              value={closingAccountId}
+              onChange={(e) => {
+                setClosingAccountId(e.target.value);
+                setClosingPreview(null);
+                setActualClosingBalance("");
+              }}
+            >
+              <option value="">Select Account</option>
+
+              {activeAccounts.map((account) => (
+                <option key={account._id} value={account._id}>
+                  {account.accountName} ({account.accountType})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Closing Date *</label>
+
+            <input
+              type="date"
+              style={fieldStyle}
+              value={closingDate}
+              max={getBangladeshToday()}
+              onChange={(e) => {
+                setClosingDate(e.target.value);
+                setClosingPreview(null);
+                setActualClosingBalance("");
+              }}
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button
+              className="primary-button"
+              style={{ width: "100%", padding: 11 }}
+              onClick={loadDailyClosingPreview}
+              disabled={
+                closingPreviewLoading ||
+                !closingAccountId ||
+                !closingDate
+              }
+            >
+              {closingPreviewLoading
+                ? "Loading Preview..."
+                : "Show Closing Preview"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* CLOSING PREVIEW */}
+      {preview && (
+        <>
+          {preview.alreadyClosed && preview.existingClosing ? (
+            <div
+              className="panel"
+              style={{
+                padding: 22,
+                border: "1px solid #16a34a",
+              }}
+            >
+              <h3 style={{ marginTop: 0, color: "#16a34a" }}>
+                এই তারিখের Closing ইতিমধ্যে সম্পন্ন হয়েছে
+              </h3>
+
+              <p>
+                Closing Date: <strong>{preview.closingDate}</strong>
+              </p>
+
+              <p>
+                System Closing:{" "}
+                <strong>{money(preview.existingClosing.systemClosingBalance)}</strong>
+              </p>
+
+              <p>
+                Actual Closing:{" "}
+                <strong>{money(preview.existingClosing.actualClosingBalance)}</strong>
+              </p>
+
+              <p>
+                Difference:{" "}
+                <strong>{money(preview.existingClosing.difference)}</strong>
+              </p>
+
+              <p>
+                Status:{" "}
+                <strong>{preview.existingClosing.closingStatus}</strong>
+              </p>
+            </div>
+          ) : (
+            <div className="panel" style={{ padding: 22 }}>
+              <h3 style={{ margin: "0 0 18px", fontSize: 16 }}>
+                Closing Summary
+              </h3>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 14,
+                }}
+              >
+                {[
+                  {
+                    label: "Opening Balance",
+                    value: preview.openingBalance,
+                  },
+                  {
+                    label: "Total In (+)",
+                    value: preview.totalIn,
+                  },
+                  {
+                    label: "Total Out (-)",
+                    value: preview.totalOut,
+                  },
+                  {
+                    label: "System Closing",
+                    value: preview.systemClosingBalance,
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      padding: 16,
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#64748b",
+                        fontSize: 12,
+                      }}
+                    >
+                      {item.label}
+                    </p>
+
+                    <h3 style={{ margin: "8px 0 0", fontSize: 19 }}>
+                      {money(item.value)}
+                    </h3>
+                  </div>
+                ))}
+              </div>
+
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  margin: "14px 0 0",
+                }}
+              >
+                Total Transactions: {preview.totalTransactions || 0}
+              </p>
+
+              {/* PHYSICAL CASH COUNT */}
+              {isCash && (
+                <div
+                  style={{
+                    marginTop: 22,
+                    padding: 18,
+                    border: "1px solid #f59e0b",
+                    borderRadius: 8,
+                    background: "#fffbeb",
+                  }}
+                >
+                  <h3 style={{ margin: "0 0 14px", fontSize: 15 }}>
+                    Physical Cash Count
+                  </h3>
+
+                  <label style={labelStyle}>
+                    হাতে গণনা করা প্রকৃত Cash Balance (৳) *
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    style={fieldStyle}
+                    placeholder="হাতে থাকা টাকার পরিমাণ লিখুন"
+                    value={actualClosingBalance}
+                    onChange={(e) =>
+                      setActualClosingBalance(e.target.value)
+                    }
+                  />
+                </div>
+              )}
+
+              {/* DIFFERENCE */}
+              {(!isCash || actualClosingBalance !== "") && (
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 18,
+                    borderRadius: 8,
+                    border: `1px solid ${statusColor}`,
+                    background: "#f8fafc",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                      gap: 14,
+                    }}
+                  >
+                    <div>
+                      <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                        Actual Closing
+                      </p>
+                      <h3 style={{ margin: "6px 0 0" }}>
+                        {money(actualBalance)}
+                      </h3>
+                    </div>
+
+                    <div>
+                      <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                        Difference
+                      </p>
+                      <h3 style={{ margin: "6px 0 0", color: statusColor }}>
+                        {difference > 0 ? "+" : ""}
+                        {money(difference)}
+                      </h3>
+                    </div>
+
+                    <div>
+                      <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                        Closing Status
+                      </p>
+                      <h3 style={{ margin: "6px 0 0", color: statusColor }}>
+                        {closingStatus}
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* REMARKS */}
+              <div style={{ marginTop: 18 }}>
+                <label style={labelStyle}>Remarks (Optional)</label>
+
+                <textarea
+                  style={{
+                    ...fieldStyle,
+                    minHeight: 75,
+                    resize: "vertical",
+                  }}
+                  placeholder="Closing সম্পর্কে কোনো মন্তব্য থাকলে লিখুন"
+                  value={closingRemarks}
+                  onChange={(e) => setClosingRemarks(e.target.value)}
+                />
+              </div>
+
+              {/* SAVE */}
+              <div style={{ marginTop: 18 }}>
+                <button
+                  className="primary-button"
+                  style={{ padding: "12px 24px" }}
+                  onClick={saveDailyAccountClosing}
+                  disabled={
+                    closingSaving ||
+                    (isCash && actualClosingBalance === "")
+                  }
+                >
+                  {closingSaving ? "Saving..." : "Confirm & Save Closing"}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* CLOSING HISTORY */}
+      <div className="panel" style={{ padding: 22 }}>
+        <div style={pageHeaderStyle}>
+          <div>
+            <h3 style={{ margin: 0 }}>Daily Closing History</h3>
+            <p style={{ color: "#7b8494", margin: "6px 0 0", fontSize: 12 }}>
+              পূর্বের Account Closing-এর তালিকা
+            </p>
+          </div>
+
+          <button
+            className="primary-button"
+            onClick={loadDailyClosingHistory}
+            disabled={closingHistoryLoading}
+          >
+            {closingHistoryLoading ? "Loading..." : "Load History"}
+          </button>
+        </div>
+
+        <div style={{ overflowX: "auto", marginTop: 18 }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 12,
+              minWidth: 950,
+            }}
+          >
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                {[
+                  "Date",
+                  "Account",
+                  "Opening",
+                  "Total In",
+                  "Total Out",
+                  "System Closing",
+                  "Actual Closing",
+                  "Difference",
+                  "Status",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      padding: 11,
+                      borderBottom: "1px solid #e2e8f0",
+                      textAlign: "left",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {closingHistoryLoading ? (
+                <tr>
+                  <td colSpan="9" style={{ padding: 20, textAlign: "center" }}>
+                    Loading closing history...
+                  </td>
+                </tr>
+              ) : closingHistory.length === 0 ? (
+                <tr>
+                  <td colSpan="9" style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>
+                    কোনো Closing History পাওয়া যায়নি
+                  </td>
+                </tr>
+              ) : (
+                closingHistory.map((item) => (
+                  <tr key={item._id}>
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {item.closingDate}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {item.accountId?.accountName || "Account"}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {money(item.openingBalance)}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {money(item.totalIn)}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {money(item.totalOut)}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {money(item.systemClosingBalance)}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {money(item.actualClosingBalance)}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      {money(item.difference)}
+                    </td>
+
+                    <td style={{ padding: 11, borderBottom: "1px solid #e2e8f0" }}>
+                      <strong
+                        style={{
+                          color:
+                            item.closingStatus === "MATCHED"
+                              ? "#16a34a"
+                              : item.closingStatus === "SHORT"
+                              ? "#dc2626"
+                              : "#2563eb",
+                        }}
+                      >
+                        {item.closingStatus}
+                      </strong>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ========================================
+// START EDIT ACCOUNT
+// ========================================
+function startEditAccount(account) {
+  setAccountEditingId(account._id);
+setAccountAdjustmentReason("");
+  setAccountForm({
+    accountName: account.accountName || "",
+    accountType: account.accountType || "CASH",
+    bankName: account.bankName || "",
+    accountNumber: account.accountNumber || "",
+    branchName: account.branchName || "",
+    openingBalance: String(account.openingBalance || 0),
+    openingBalanceDate: account.openingBalanceDate
+      ? new Date(account.openingBalanceDate).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
+    notes: account.notes || "",
+  });
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
+
+
+// ========================================
+// DEACTIVATE ACCOUNT (SAFE DELETE)
+// ========================================
+async function deactivateAccount(account) {
+  const confirmed = window.confirm(
+    `"${account.accountName}" Account Deactivate করতে চান?\n\nপুরোনো Transaction History মুছে যাবে না।`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    await apiRequest(`/accounts/${account._id}/deactivate`, {
+      method: "PATCH",
+    });
+
+    toast.success("Account সফলভাবে Deactivate হয়েছে");
+
+    if (accountEditingId === account._id) {
+      setAccountEditingId("");
+
+      setAccountForm({
+        accountName: "",
+        accountType: "CASH",
+        bankName: "",
+        accountNumber: "",
+        branchName: "",
+        openingBalance: "0",
+        openingBalanceDate: new Date().toISOString().slice(0, 10),
+        notes: "",
+      });
+    }
+
+    await loadAccounts();
+  } catch (error) {
+    toast.error(error.message || "Account Deactivate করা যায়নি");
+  }
+}
+
+
+async function reactivateAccount(account) {
+  const confirmed = window.confirm(
+    `"${account.accountName}" Account আবার Active করতে চান?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    await apiRequest(`/accounts/${account._id}/activate`, {
+      method: "PATCH",
+    });
+
+    toast.success("Account সফলভাবে Reactivate হয়েছে");
+
+    await loadAccounts();
+  } catch (error) {
+    toast.error(error.message || "Account Reactivate করা যায়নি");
+  }
+}
+
+// ========================================
+// DAILY CASH BOOK REPORT PAGE
+// ========================================
+
+function renderDailyCashBook() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 7,
+    fontSize: 13,
+    background: "#fff",
+    boxSizing: "border-box",
+  };
+
+  const formatMoney = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const cardStyle = {
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 9,
+    padding: 16,
+    minWidth: 0,
+  };
+
+  const getRowDate = (row) => {
+    const date = row.transactionDate || row.date || row.createdAt;
+    return date ? new Date(date).toLocaleDateString("en-GB") : "-";
+  };
+
+  const getRowDirection = (row) => {
+    if (row.direction) return row.direction;
+
+    const type = String(row.transactionType || "").toUpperCase();
+
+    if (
+      ["DEPOSIT", "TRANSFER_IN", "OPENING_BALANCE"].includes(type)
+    ) {
+      return "IN";
+    }
+
+    return "OUT";
+  };
+
+  return (
+    <div className="panel" style={{ padding: 16, background: "#f8fafc" }}>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 12,
+        marginBottom: 18,
+      }}>
+        <div>
+          <h2 style={{ margin: 0, color: "#172554", fontSize: 21 }}>
+            Daily Cash Book
+          </h2>
+          <p style={{ margin: "5px 0 0", color: "#64748b", fontSize: 12 }}>
+            Daily cash and account transaction statement
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={loadDailyCashBook}
+          disabled={cashBookLoading}
+          style={{
+            padding: "9px 16px",
+            border: "none",
+            borderRadius: 7,
+            background: "#2563eb",
+            color: "#fff",
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {cashBookLoading ? "Loading..." : "↻ Refresh"}
+        </button>
+      </div>
+
+      {/* FILTERS */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: 12,
+        background: "#fff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 9,
+        padding: 15,
+        marginBottom: 16,
+      }}>
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            Select Account
+          </label>
+
+          <select
+            style={fieldStyle}
+            value={cashBookFilters.accountId}
+            onChange={(e) =>
+              setCashBookFilters((prev) => ({
+                ...prev,
+                accountId: e.target.value,
               }))
             }
           >
-            <option value="DEPOSIT">Deposit (জমা)</option>
-            <option value="WITHDRAWAL">Withdraw (উত্তোলন)</option>
-            <option value="TRANSFER">Transfer (স্থানান্তর)</option>
+            <option value="">All Accounts</option>
+            {accounts.map((account) => (
+              <option key={account._id} value={account._id}>
+                {account.accountName || account.name || account.bankName || "Account"}
+              </option>
+            ))}
           </select>
         </div>
 
         <div>
-          <label style={labelStyle}>
-            {transactionForm.transactionType === "DEPOSIT"
-              ? "Deposit To Account *"
-              : "From Account *"}
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            From Date
+          </label>
+
+          <input
+            type="date"
+            style={fieldStyle}
+            value={cashBookFilters.fromDate}
+            onChange={(e) =>
+              setCashBookFilters((prev) => ({
+                ...prev,
+                fromDate: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <div>
+          <label style={{
+            display: "block",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#475569",
+            marginBottom: 6,
+          }}>
+            To Date
+          </label>
+
+          <input
+            type="date"
+            style={fieldStyle}
+            value={cashBookFilters.toDate}
+            onChange={(e) =>
+              setCashBookFilters((prev) => ({
+                ...prev,
+                toDate: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <div style={{
+          display: "flex",
+          alignItems: "end",
+          gap: 8,
+        }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                cashBookFilters.fromDate &&
+                cashBookFilters.toDate &&
+                cashBookFilters.fromDate > cashBookFilters.toDate
+              ) {
+                toast.error("From Date, To Date-এর পরে হতে পারবে না");
+                return;
+              }
+
+              loadDailyCashBook();
+            }}
+            disabled={cashBookLoading}
+            style={{
+              padding: "10px 17px",
+              border: "none",
+              borderRadius: 7,
+              background: "#0f766e",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Apply Filter
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10);
+
+              setCashBookFilters({
+                accountId: "",
+                fromDate: today,
+                toDate: today,
+              });
+
+              setTimeout(() => {
+                loadDailyCashBook();
+              }, 0);
+            }}
+            style={{
+              padding: "10px 14px",
+              border: "1px solid #cbd5e1",
+              borderRadius: 7,
+              background: "#fff",
+              color: "#475569",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Today
+          </button>
+        </div>
+      </div>
+
+      {/* SUMMARY CARDS */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+        gap: 12,
+        marginBottom: 18,
+      }}>
+        <div style={{ ...cardStyle, borderTop: "3px solid #64748b" }}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            Opening Balance
+          </div>
+          <div style={{
+            fontSize: 21,
+            fontWeight: 800,
+            color: "#334155",
+            marginTop: 9,
+          }}>
+            ৳ {formatMoney(cashBookSummary.openingBalance)}
+          </div>
+        </div>
+
+        <div style={{ ...cardStyle, borderTop: "3px solid #16a34a" }}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            Total Cash In
+          </div>
+          <div style={{
+            fontSize: 21,
+            fontWeight: 800,
+            color: "#16a34a",
+            marginTop: 9,
+          }}>
+            ৳ {formatMoney(cashBookSummary.totalIn)}
+          </div>
+        </div>
+
+        <div style={{ ...cardStyle, borderTop: "3px solid #dc2626" }}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            Total Cash Out
+          </div>
+          <div style={{
+            fontSize: 21,
+            fontWeight: 800,
+            color: "#dc2626",
+            marginTop: 9,
+          }}>
+            ৳ {formatMoney(cashBookSummary.totalOut)}
+          </div>
+        </div>
+
+        <div style={{ ...cardStyle, borderTop: "3px solid #2563eb" }}>
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+            Closing Balance
+          </div>
+          <div style={{
+            fontSize: 21,
+            fontWeight: 800,
+            color: "#2563eb",
+            marginTop: 9,
+          }}>
+            ৳ {formatMoney(cashBookSummary.closingBalance)}
+          </div>
+        </div>
+      </div>
+
+      {/* TRANSACTION TABLE */}
+      <div style={{
+        background: "#fff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 9,
+        overflow: "hidden",
+      }}>
+        <div style={{
+          padding: 14,
+          borderBottom: "1px solid #e2e8f0",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 8,
+        }}>
+          <h3 style={{ margin: 0, fontSize: 15, color: "#172554" }}>
+            Transaction Details
+          </h3>
+          <span style={{ fontSize: 12, color: "#64748b" }}>
+            Total: {cashBookRows.length} Transactions
+          </span>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{
+            width: "100%",
+            minWidth: 850,
+            borderCollapse: "collapse",
+          }}>
+            <thead>
+              <tr style={{ background: "#f1f5f9" }}>
+                {[
+                  "Date",
+                  "Transaction Type",
+                  "Account",
+                  "Description",
+                  "Reference",
+                  "Cash In",
+                  "Cash Out",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      padding: "11px 12px",
+                      fontSize: 11,
+                      color: "#475569",
+                      textAlign: "left",
+                      whiteSpace: "nowrap",
+                      borderBottom: "1px solid #e2e8f0",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {cashBookLoading ? (
+                <tr>
+                  <td colSpan="7" style={{
+                    padding: 25,
+                    textAlign: "center",
+                    color: "#64748b",
+                  }}>
+                    Loading transactions...
+                  </td>
+                </tr>
+              ) : cashBookRows.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{
+                    padding: 25,
+                    textAlign: "center",
+                    color: "#64748b",
+                  }}>
+                    এই Date Range-এ কোনো Transaction পাওয়া যায়নি।
+                  </td>
+                </tr>
+              ) : (
+                cashBookRows.map((row) => {
+                  const direction = getRowDirection(row);
+                  const amount = Number(row.amount || 0);
+
+                  const accountName =
+                    row.accountId?.accountName ||
+                    row.accountId?.name ||
+                    row.accountName ||
+                    "-";
+
+                  return (
+                    <tr key={row._id}>
+                      <td style={{
+                        padding: "11px 12px",
+                        fontSize: 12,
+                        borderBottom: "1px solid #f1f5f9",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {getRowDate(row)}
+                      </td>
+
+                      <td style={{
+                        padding: "11px 12px",
+                        fontSize: 12,
+                        borderBottom: "1px solid #f1f5f9",
+                      }}>
+                        {row.transactionType || "-"}
+                      </td>
+
+                      <td style={{
+                        padding: "11px 12px",
+                        fontSize: 12,
+                        borderBottom: "1px solid #f1f5f9",
+                      }}>
+                        {accountName}
+                      </td>
+
+                      <td style={{
+                        padding: "11px 12px",
+                        fontSize: 12,
+                        borderBottom: "1px solid #f1f5f9",
+                        maxWidth: 220,
+                        whiteSpace: "normal",
+                      }}>
+                        {row.description || "-"}
+                      </td>
+
+                      <td style={{
+                        padding: "11px 12px",
+                        fontSize: 12,
+                        borderBottom: "1px solid #f1f5f9",
+                      }}>
+                        {row.reference || "-"}
+                      </td>
+
+                      <td style={{
+                        padding: "11px 12px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "#16a34a",
+                        borderBottom: "1px solid #f1f5f9",
+                      }}>
+                        {direction === "IN" ? formatMoney(amount) : "-"}
+                      </td>
+
+                      <td style={{
+                        padding: "11px 12px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "#dc2626",
+                        borderBottom: "1px solid #f1f5f9",
+                      }}>
+                        {direction === "OUT" ? formatMoney(amount) : "-"}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderAccountStatement() {
+  const fieldStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #dbe1ea",
+    borderRadius: 7,
+    fontSize: 13,
+    background: "#fff",
+    boxSizing: "border-box",
+  };
+
+  const formatMoney = (amount) =>
+    Number(amount || 0).toLocaleString("en-BD", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const data = accountStatementData;
+  const summaryStyle = {
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 9,
+    padding: 15,
+  };
+
+  return (
+    <div className="panel" style={{ padding: 16, background: "#f8fafc" }}>
+      <div style={{ marginBottom: 18 }}>
+        <h2 style={{ margin: 0, color: "#172554", fontSize: 21 }}>
+          Account Statement & Reports
+        </h2>
+        <p style={{ margin: "5px 0 0", color: "#64748b", fontSize: 12 }}>
+          Account-wise transaction statement with running balance
+        </p>
+      </div>
+
+      {/* FILTERS */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: 12,
+        background: "#fff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 9,
+        padding: 15,
+        marginBottom: 16,
+      }}>
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+            Select Account
           </label>
           <select
             style={fieldStyle}
-            value={transactionForm.accountId}
+            value={accountStatementFilters.accountId}
             onChange={(e) =>
-              setTransactionForm((prev) => ({
+              setAccountStatementFilters((prev) => ({
                 ...prev,
                 accountId: e.target.value,
               }))
             }
           >
             <option value="">Select Account</option>
-            {accounts
-              .filter((account) => account.isActive !== false)
-              .map((account) => (
-                <option key={account._id} value={account._id}>
-                  {account.accountName} ({account.accountType})
-                </option>
-              ))}
+            {accounts.map((account) => (
+              <option key={account._id} value={account._id}>
+                {account.accountName || account.name || account.bankName || "Account"}
+              </option>
+            ))}
           </select>
         </div>
 
-        {transactionForm.transactionType === "TRANSFER" && (
-          <div>
-            <label style={labelStyle}>To Account *</label>
-            <select
-              style={fieldStyle}
-              value={transactionForm.relatedAccountId}
-              onChange={(e) =>
-                setTransactionForm((prev) => ({
-                  ...prev,
-                  relatedAccountId: e.target.value,
-                }))
-              }
-            >
-              <option value="">Select Destination Account</option>
-              {accounts
-                .filter(
-                  (account) =>
-                    account.isActive !== false &&
-                    account._id !== transactionForm.accountId
-                )
-                .map((account) => (
-                  <option key={account._id} value={account._id}>
-                    {account.accountName} ({account.accountType})
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
-
         <div>
-          <label style={labelStyle}>Amount (৳) *</label>
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            style={fieldStyle}
-            placeholder="Enter amount"
-            value={transactionForm.amount}
-            onChange={(e) =>
-              setTransactionForm((prev) => ({
-                ...prev,
-                amount: e.target.value,
-              }))
-            }
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Transaction Date</label>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+            From Date
+          </label>
           <input
             type="date"
             style={fieldStyle}
-            value={transactionForm.transactionDate}
+            value={accountStatementFilters.fromDate}
             onChange={(e) =>
-              setTransactionForm((prev) => ({
+              setAccountStatementFilters((prev) => ({
                 ...prev,
-                transactionDate: e.target.value,
+                fromDate: e.target.value,
               }))
             }
           />
         </div>
 
         <div>
-          <label style={labelStyle}>Reference</label>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+            To Date
+          </label>
           <input
+            type="date"
             style={fieldStyle}
-            placeholder="Optional reference"
-            value={transactionForm.reference}
+            value={accountStatementFilters.toDate}
             onChange={(e) =>
-              setTransactionForm((prev) => ({
+              setAccountStatementFilters((prev) => ({
                 ...prev,
-                reference: e.target.value,
+                toDate: e.target.value,
               }))
             }
           />
         </div>
 
-        <div>
-          <label style={labelStyle}>Description</label>
-          <input
-            style={fieldStyle}
-            placeholder="Transaction details"
-            value={transactionForm.description}
-            onChange={(e) =>
-              setTransactionForm((prev) => ({
-                ...prev,
-                description: e.target.value,
-              }))
-            }
-          />
+        <div style={{ display: "flex", alignItems: "end" }}>
+          <button
+            type="button"
+            onClick={loadAccountStatement}
+            disabled={accountStatementLoading}
+            style={{
+              padding: "10px 18px",
+              border: "none",
+              borderRadius: 7,
+              background: "#2563eb",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+              width: "100%",
+            }}
+          >
+            {accountStatementLoading ? "Loading..." : "Generate Statement"}
+          </button>
         </div>
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        <button
-          className="primary-button"
-          onClick={saveAccountTransaction}
-          disabled={transactionSaving}
-        >
-          {transactionSaving ? "Processing..." : "Save Transaction"}
-        </button>
-      </div>
+      {!data && !accountStatementLoading && (
+        <div style={{
+          background: "#fff",
+          border: "1px solid #e2e8f0",
+          borderRadius: 9,
+          padding: 30,
+          textAlign: "center",
+          color: "#64748b",
+        }}>
+          Account নির্বাচন করে Generate Statement চাপুন।
+        </div>
+      )}
+
+      {accountStatementLoading && (
+        <div style={{ padding: 25, textAlign: "center", color: "#64748b" }}>
+          Loading Account Statement...
+        </div>
+      )}
+
+      {data && !accountStatementLoading && (
+        <>
+
+
+
+{/* PDF & PRINT BUTTONS */}
+<div style={{
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: 10,
+  flexWrap: "wrap",
+  marginBottom: 15,
+}}>
+  <button
+    type="button"
+    onClick={() => {
+      const data = accountStatementData;
+      if (!data) return;
+
+      const doc = new jsPDF({ orientation: "landscape" });
+
+      const accountName =
+        data.account?.accountName ||
+        data.account?.name ||
+        data.account?.bankName ||
+        "Account";
+
+      doc.setFontSize(17);
+      doc.text("ACCOUNT STATEMENT", 14, 16);
+
+      doc.setFontSize(10);
+      doc.text(`Account: ${accountName}`, 14, 25);
+      doc.text(
+        `Period: ${data.fromDate} to ${data.toDate}`,
+        14,
+        31
+      );
+
+      doc.text(
+        `Opening Balance: BDT ${formatMoney(data.openingBalance)}`,
+        14,
+        41
+      );
+      doc.text(
+        `Total In: BDT ${formatMoney(data.totalIn)}`,
+        14,
+        47
+      );
+      doc.text(
+        `Total Out: BDT ${formatMoney(data.totalOut)}`,
+        100,
+        47
+      );
+      doc.text(
+        `Closing Balance: BDT ${formatMoney(data.closingBalance)}`,
+        190,
+        47
+      );
+
+      const tableRows = (data.transactions || []).map((row) => [
+        row.transactionDate
+          ? new Date(row.transactionDate).toLocaleDateString("en-GB")
+          : "-",
+        row.transactionType || "-",
+        row.reference || "-",
+        row.description || "-",
+        row.direction === "IN" ? formatMoney(row.amount) : "-",
+        row.direction === "OUT" ? formatMoney(row.amount) : "-",
+        formatMoney(row.runningBalance),
+      ]);
+
+      autoTable(doc, {
+        startY: 55,
+        head: [[
+          "Date",
+          "Type",
+          "Reference",
+          "Description",
+          "In",
+          "Out",
+          "Balance",
+        ]],
+        body: [
+          [
+            "",
+            "Opening Balance",
+            "",
+            "",
+            "",
+            "",
+            formatMoney(data.openingBalance),
+          ],
+          ...tableRows,
+        ],
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+        },
+        headStyles: {
+          fillColor: [30, 64, 175],
+        },
+        theme: "grid",
+      });
+
+      doc.save("Account-Statement.pdf");
+    }}
+    disabled={!accountStatementData}
+    style={{
+      padding: "10px 16px",
+      border: "none",
+      borderRadius: 7,
+      background: "#dc2626",
+      color: "#fff",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    <Printer size={15} style={{ marginRight: 6, verticalAlign: "middle" }} />
+    Download PDF
+  </button>
+
+  <button
+    type="button"
+    onClick={() => window.print()}
+    disabled={!accountStatementData}
+    style={{
+      padding: "10px 16px",
+      border: "1px solid #cbd5e1",
+      borderRadius: 7,
+      background: "#fff",
+      color: "#334155",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    <Printer size={15} style={{ marginRight: 6, verticalAlign: "middle" }} />
+    Print
+  </button>
+</div>
+
+          {/* ACCOUNT INFO */}
+          <div style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 9,
+            padding: 15,
+            marginBottom: 15,
+          }}>
+            <h3 style={{ margin: "0 0 8px", color: "#172554", fontSize: 16 }}>
+              {data.account?.accountName || data.account?.name || data.account?.bankName || "Account"}
+            </h3>
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              Statement Period: {data.fromDate} — {data.toDate}
+            </div>
+          </div>
+
+          {/* SUMMARY */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+            gap: 12,
+            marginBottom: 16,
+          }}>
+            {[
+              ["Opening Balance", data.openingBalance, "#64748b"],
+              ["Total In", data.totalIn, "#16a34a"],
+              ["Total Out", data.totalOut, "#dc2626"],
+              ["Closing Balance", data.closingBalance, "#2563eb"],
+            ].map(([label, amount, color]) => (
+              <div key={label} style={{ ...summaryStyle, borderTop: `3px solid ${color}` }}>
+                <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color, marginTop: 9 }}>
+                  ৳ {formatMoney(amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* TRANSACTION TABLE */}
+          <div style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 9,
+            overflow: "hidden",
+          }}>
+            <div style={{ padding: 14, borderBottom: "1px solid #e2e8f0" }}>
+              <h3 style={{ margin: 0, fontSize: 15, color: "#172554" }}>
+                Transaction Details ({data.totalTransactions || 0})
+              </h3>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={{
+                width: "100%",
+                minWidth: 900,
+                borderCollapse: "collapse",
+              }}>
+                <thead>
+                  <tr style={{ background: "#f1f5f9" }}>
+                    {["Date", "Type", "Reference", "Description", "In (৳)", "Out (৳)", "Balance (৳)"].map((heading) => (
+                      <th key={heading} style={{
+                        padding: "11px 12px",
+                        fontSize: 11,
+                        color: "#475569",
+                        textAlign: "left",
+                        whiteSpace: "nowrap",
+                        borderBottom: "1px solid #e2e8f0",
+                      }}>
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr style={{ background: "#f8fafc" }}>
+                    <td colSpan="6" style={{ padding: 11, fontSize: 12, fontWeight: 700 }}>
+                      Opening Balance
+                    </td>
+                    <td style={{ padding: 11, fontSize: 12, fontWeight: 800 }}>
+                      {formatMoney(data.openingBalance)}
+                    </td>
+                  </tr>
+
+                  {data.transactions?.length ? (
+                    data.transactions.map((row) => (
+                      <tr key={row._id}>
+                        <td style={{ padding: 11, fontSize: 12, borderBottom: "1px solid #f1f5f9", whiteSpace: "nowrap" }}>
+                          {row.transactionDate ? new Date(row.transactionDate).toLocaleDateString("en-GB") : "-"}
+                        </td>
+                        <td style={{ padding: 11, fontSize: 12, borderBottom: "1px solid #f1f5f9" }}>
+                          {row.transactionType || "-"}
+                        </td>
+                        <td style={{ padding: 11, fontSize: 12, borderBottom: "1px solid #f1f5f9" }}>
+                          {row.reference || "-"}
+                        </td>
+                        <td style={{ padding: 11, fontSize: 12, borderBottom: "1px solid #f1f5f9" }}>
+                          {row.description || "-"}
+                        </td>
+                        <td style={{ padding: 11, fontSize: 12, color: "#16a34a", fontWeight: 700 }}>
+                          {row.direction === "IN" ? formatMoney(row.amount) : "-"}
+                        </td>
+                        <td style={{ padding: 11, fontSize: 12, color: "#dc2626", fontWeight: 700 }}>
+                          {row.direction === "OUT" ? formatMoney(row.amount) : "-"}
+                        </td>
+                        <td style={{ padding: 11, fontSize: 12, fontWeight: 800 }}>
+                          {formatMoney(row.runningBalance)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" style={{ padding: 25, textAlign: "center", color: "#64748b" }}>
+                        এই Date Range-এ কোনো Transaction নেই।
+                      </td>
+                    </tr>
+                  )}
+
+                  <tr style={{ background: "#f1f5f9", fontWeight: 800 }}>
+                    <td colSpan="4" style={{ padding: 12 }}>Closing Balance</td>
+                    <td style={{ padding: 12, color: "#16a34a" }}>{formatMoney(data.totalIn)}</td>
+                    <td style={{ padding: 12, color: "#dc2626" }}>{formatMoney(data.totalOut)}</td>
+                    <td style={{ padding: 12 }}>{formatMoney(data.closingBalance)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -26802,7 +29221,7 @@ function renderExpenseHistory() {
               cursor: "pointer",
             }}
           >
-            {expenseHistoryLoading ? "Searching..." : "⌕ Search Expenses"}
+            {expenseHistoryLoading ? "Searching..." : "âŒ• Search Expenses"}
           </button>
         </div>
       </div>
@@ -28024,7 +30443,7 @@ function renderDateWiseExpenseReport() {
               cursor: "pointer",
             }}
           >
-            {dateWiseExpenseLoading ? "Loading..." : "⌕ Generate Report"}
+            {dateWiseExpenseLoading ? "Loading..." : "âŒ• Generate Report"}
           </button>
         </div>
       </div>
@@ -28145,7 +30564,7 @@ function renderDateWiseExpenseReport() {
                               cursor: "pointer",
                             }}
                           >
-                            {isExpanded ? "Hide Details ▲" : "View Details ▼"}
+                            {isExpanded ? "Hide Details â–²" : "View Details ▼"}
                           </button>
                         </td>
                       </tr>
@@ -29081,6 +31500,27 @@ function renderAccounts() {
               }
             />
           </div>
+{accountEditingId && (
+  <div>
+    <label style={labelStyle}>
+      Opening Balance Change Reason
+    </label>
+
+    <input
+      style={fieldStyle}
+      placeholder="যেমন: Opening balance correction"
+      value={accountAdjustmentReason}
+      onChange={(e) =>
+        setAccountAdjustmentReason(e.target.value)
+      }
+    />
+
+    <small style={{ color: "#64748b" }}>
+      Opening Balance পরিবর্তন করলে কারণ লিখতে হবে।
+    </small>
+  </div>
+)}
+
 
           <div>
             <label style={labelStyle}>Opening Balance Date</label>
@@ -29113,16 +31553,52 @@ function renderAccounts() {
           </div>
         </div>
 
-        <div style={{ marginTop: 18 }}>
-          <button
-            className="primary-button"
-            onClick={saveAccount}
-            disabled={accountSaving}
-          >
-            <Plus size={16} />
-            {accountSaving ? "Saving..." : "Save Account"}
-          </button>
-        </div>
+     <div
+  style={{
+    marginTop: 18,
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  }}
+>
+  <button
+    className="primary-button"
+    onClick={accountEditingId ? updateAccount : saveAccount}
+    disabled={accountSaving}
+  >
+    {accountEditingId ? null : <Plus size={16} />}
+    {accountSaving
+      ? "Saving..."
+      : accountEditingId
+      ? "Update Account"
+      : "Save Account"}
+  </button>
+
+  {accountEditingId && (
+    <button
+      type="button"
+      className="secondary-button"
+      disabled={accountSaving}
+      onClick={() => {
+        setAccountEditingId("");
+
+        setAccountForm({
+          accountName: "",
+          accountType: "CASH",
+          bankName: "",
+          accountNumber: "",
+          branchName: "",
+          openingBalance: "0",
+          openingBalanceDate: new Date().toISOString().slice(0, 10),
+          notes: "",
+        });
+      }}
+    >
+      Cancel Edit
+    </button>
+  )}
+</div>
+
       </div>
 
       <div className="panel" style={{ padding: 22 }}>
@@ -29153,6 +31629,7 @@ function renderAccounts() {
                   <th>OPENING BALANCE</th>
                   <th>CURRENT BALANCE</th>
                   <th>STATUS</th>
+                  <th>ACTIONS</th>
                 </tr>
               </thead>
 
@@ -29172,6 +31649,7 @@ function renderAccounts() {
         ৳ {Number(account.openingBalance || 0).toLocaleString("en-BD")}
       </td>
 
+
       <td
         style={{
           textAlign: "left",
@@ -29185,9 +31663,51 @@ function renderAccounts() {
         ).toLocaleString("en-BD")}
       </td>
 
-      <td>
-        {account.isActive !== false ? "Active" : "Inactive"}
-      </td>
+
+
+   <td>
+  {account.isActive !== false ? "Active" : "Inactive"}
+</td>
+
+
+<td>
+  {account.isActive !== false ? (
+    <div style={{ display: "flex", gap: 7 }}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => startEditAccount(account)}
+      >
+        Edit
+      </button>
+
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => deactivateAccount(account)}
+        style={{
+          color: "#dc2626",
+          borderColor: "#fecaca",
+        }}
+      >
+        Deactivate
+      </button>
+    </div>
+  ) : (
+    <button
+      type="button"
+      className="secondary-button"
+      onClick={() => reactivateAccount(account)}
+      style={{
+        color: "#15803d",
+        borderColor: "#bbf7d0",
+      }}
+    >
+      Reactivate
+    </button>
+  )}
+</td>
+
     </tr>
   ))}
 </tbody>
@@ -33086,7 +35606,7 @@ async function handleAdminLogout() {
             <div className="search-box">
               <Search size={18} />
               <input placeholder="Search anything..." />
-              <kbd>⌘ K</kbd>
+              <kbd>âŒ˜ K</kbd>
             </div>
             <button className="icon-button notification">
               <Bell size={20} /><span />
@@ -33117,6 +35637,9 @@ async function handleAdminLogout() {
 {activePage === "Category-wise Expense Report" && renderCategoryWiseExpenseReport()}
 {activePage === "Account Transactions" && renderAccountTransactions()}
 {activePage === "Transaction History" && renderTransactionHistory()}
+{activePage === "Cash Book Report" && renderDailyCashBook()}
+{activePage === "Daily Account Closing" && renderDailyAccountClosing()}
+{activePage === "Account Statement & Reports" && renderAccountStatement()}
 {activePage === "Loan Providers" && renderLoanProviders()}
 {activePage === "Loan Received" && renderLoanReceived()}
 {activePage === "Loan Repayment" && renderLoanRepayment()}
@@ -33185,7 +35708,8 @@ async function handleAdminLogout() {
 )}
 
 
-  {activePage === "Commission Management" &&
+  {activePage === "Financial Summary" && <FinancialSummary />}
+        {activePage === "Commission Management" &&
     renderCommissionManagement()}
   {activePage === "Commission History" && renderCommissionHistory()}
   {activePage === "Commission Reports" && renderCommissionReports()}
@@ -33206,6 +35730,7 @@ async function handleAdminLogout() {
     "Commission History",
     "Commission Reports",
     "Activity Log",
+    "Financial Summary",
 
     "Sales",
     "Sales Dashboard",
@@ -33353,3 +35878,6 @@ const modalFooterStyle = {
 };
 
 export default App;
+
+
+
