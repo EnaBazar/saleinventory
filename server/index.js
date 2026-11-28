@@ -24,7 +24,7 @@ import loanStatementRoutes from "./routes/loanStatementRoutes.js";
 import expenseCategoryRoutes from "./routes/expenseCategoryRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import financialSummaryRoutes from "./routes/financialSummaryRoutes.js";
-
+import ownerCapitalRoutes from "./routes/ownerCapitalRoutes.js";
 
 
 // Load packages only after DNS configuration
@@ -74,6 +74,8 @@ app.use(
   requireAdmin,
   financialSummaryRoutes
 );
+
+app.use("/api/owner-capital", requireAdmin, ownerCapitalRoutes);
 // Accounting Routes
 app.use("/api/accounts", requireAdmin, accountRoutes);
 
