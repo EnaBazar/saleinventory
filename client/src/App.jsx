@@ -26,7 +26,7 @@ import autoTable from "jspdf-autotable";
 
 
 
-const API = "http://localhost:5000/api";
+const API = "/api";
 
 
 const navigation = [
@@ -35878,6 +35878,7 @@ const modalFooterStyle = {
 };
 
 export default App;
+
 
 
 

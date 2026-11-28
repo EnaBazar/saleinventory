@@ -1,6 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-const API = "http://localhost:5000/api";
+const API = "/api";
 
 const todayISO = () => {
   const now = new Date();
@@ -1043,3 +1043,4 @@ export default function FinancialSummary() {
     </div>
   );
 }
+
